@@ -1,10 +1,11 @@
-<<<<<<< Updated upstream
 # =========================
 # Environment files
 # =========================
 .env
 .env.*
 */.env
+backend/.env
+STT_Alibaba/.env
 
 # =========================
 # Python cache
@@ -30,9 +31,15 @@ dist/
 *.egg-info/
 
 # =========================
-# Logs
+# Logs & Transcripts
 # =========================
 *.log
+transcript_*.txt
+
+# =========================
+# Machine Learning / AI
+# =========================
+*.pt
 
 # =========================
 # IDE files
@@ -47,13 +54,9 @@ dist/
 Thumbs.db
 
 # =========================
-# Testing cache
+# Testing cache & Coverage
 # =========================
 .pytest_cache/
-
-# =========================
-# Coverage reports
-# =========================
 .coverage
 htmlcov/
 
@@ -61,8 +64,9 @@ htmlcov/
 # Node (if frontend exists)
 # =========================
 node_modules/
-/backend/__pycache__
-=======
-/backend
-backend/.env
->>>>>>> Stashed changes
+
+# =========================
+# Project specific directories
+# =========================
+/backend/
+/backend/__pycache__/
