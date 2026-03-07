@@ -66,8 +66,8 @@ def run_pipeline():
         start_pureadio = time.time()
         future_pureadio = executor.submit(pureadio.run, AUDIO_FILE)
         
-        start_situeval = time.time()
-        future_situeval = executor.submit(situationeval.run, AUDIO_FILE)
+        #start_situeval = time.time()
+        #future_situeval = executor.submit(situationeval.run, AUDIO_FILE)
         
         start_caption = time.time()
         future_caption  = executor.submit(captioner.run, AUDIO_FILE)
@@ -78,14 +78,14 @@ def run_pipeline():
             res_pureadio = future_pureadio.result() or {}
             print(f"[PARALLEL] pureadio finished in {time.time() - start_pureadio:.2f}s")
             
-            res_situeval = future_situeval.result() or {}
-            print(f"[PARALLEL] situationeval finished in {time.time() - start_situeval:.2f}s")
+            #res_situeval = future_situeval.result() or {}
+            #print(f"[PARALLEL] situationeval finished in {time.time() - start_situeval:.2f}s")
             
             res_caption  = future_caption.result() or {}
             print(f"[PARALLEL] captioner finished in {time.time() - start_caption:.2f}s")
             
             print(f"[DEBUG] res_pureadio keys: {list(res_pureadio.keys())}")
-            print(f"[DEBUG] res_situeval keys: {list(res_situeval.keys())}")
+            #print(f"[DEBUG] res_situeval keys: {list(res_situeval.keys())}")
             print(f"[DEBUG] res_caption keys: {list(res_caption.keys())}")
 
         except Exception as e:
@@ -113,7 +113,7 @@ def run_pipeline():
         transcript=stt_result["transcript"],
         stt_confidence=stt_result["confidence"],
         protocol=triage_protocol,
-        situation_eval=res_situeval,
+        #situation_eval=res_situeval,
         caption=res_caption
     )
 
@@ -127,7 +127,7 @@ def run_pipeline():
         audio_file=AUDIO_FILE,
         stt_result=stt_result,
         triage_result=triage_result,
-        situation_eval=res_situeval,
+        #situation_eval=res_situeval,
         caption=res_caption
     )
 
