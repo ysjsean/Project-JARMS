@@ -19,17 +19,19 @@ async def list_cases():
     try:
         response = (
             supabase.table("cases")
-            .select(
-                """
-                *,
-                pab_beneficiaries(*)
-                """
-            )
+            .select("*, pab_beneficiaries(*)")
             .order("opened_at", desc=True)
             .execute()
         )
 
-        return {"items": response.data}
+        items = []
+
+        for row in response.data:
+            beneficiary = row.pop("pab_beneficiaries", {})
+            merged = {**row, **beneficiary}
+            items.append(merged)
+
+        return {"items": items}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
