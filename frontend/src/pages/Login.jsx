@@ -88,7 +88,7 @@ export default function Login() {
           <button 
             type="submit"
             disabled={!selectedOp || loading}
-            className="w-full py-3 px-4 bg-[var(--color-med)] hover:bg-[#e6a600] text-black font-bold rounded-lg tracking-wider transition-colors shadow-[0_0_15px_rgba(255,184,0,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 px-4 bg-[var(--color-med)] hover:bg-[#e6a600] text-black font-bold rounded-lg tracking-wider transition-all shadow-[0_0_15px_rgba(255,184,0,0.3)] hover:shadow-[0_0_25px_rgba(255,184,0,0.6)] hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'INITIALIZING...' : 'ENTER SYSTEM'}
           </button>

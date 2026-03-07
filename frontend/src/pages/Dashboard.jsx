@@ -30,6 +30,11 @@ export default function Dashboard() {
     }
   }, [currentUser, navigate]);
 
+  // Close detail panel when filter changes
+  useEffect(() => {
+    dispatch(closeDetail());
+  }, [filter, dispatch]);
+
   // Validate restored session against the backend on mount
   useEffect(() => {
     if (!currentUser) return;
@@ -128,9 +133,15 @@ export default function Dashboard() {
 
       {/* Main Content Area: Split dynamically based on selection */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Alert List Container (grows) */}
+        {/* Alert List Container (grows) - Click empty space to close panel */}
         <div
           className={`flex flex-col ${selectedAlertId ? "w-full lg:w-[calc(100%-400px)] lg:border-r border-[var(--panel-border)]" : "w-full"} overflow-hidden transition-all duration-300`}
+          onClick={(e) => {
+            // Close panel only if clicking directly on this div (empty space), not on children
+            if (e.target === e.currentTarget) {
+              dispatch(closeDetail());
+            }
+          }}
         >
           <AlertList
             alerts={filteredAlerts}
@@ -141,7 +152,7 @@ export default function Dashboard() {
 
         {/* Alert Detail Side Panel (fixed width on desktop, overlays/slides on mobile ideally) */}
         {selectedAlertId && (
-          <div className="w-[400px] flex-none bg-[var(--panel-bg)] overflow-y-auto hidden lg:block border-l border-[var(--panel-border)] animate-slideIn">
+          <div className="w-[400px] flex-none bg-[var(--panel-bg)] overflow-y-auto hidden lg:block border-l border-[var(--panel-border)] transition-all duration-500 ease-in-out transform origin-right animate-in slide-in-from-right">
             <AlertDetail
               alert={selectedAlert}
               onClose={() => dispatch(closeDetail())}

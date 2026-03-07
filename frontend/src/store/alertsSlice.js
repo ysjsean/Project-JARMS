@@ -37,6 +37,7 @@ export const mapCase = (c) => ({
   audio_file_url: c.audio_file_url,
   audio_duration_seconds: c.audio_duration_seconds,
   transcript: c.transcript_english || c.transcript_raw || '',
+  audio_caption_text: c.audio_caption_text || '',
   sbar: typeof c.sbar_json === 'string' ? JSON.parse(c.sbar_json) : c.sbar_json,
   triage_flags: c.triage_flags || [],
   recommended_actions: c.recommended_actions || [],
@@ -74,7 +75,6 @@ export const fetchInitialAlerts = createAsyncThunk(
   }
 );
 
-// Async thunk to update case in backend
 export const updateCaseBackend = createAsyncThunk(
   'alerts/updateCaseBackend',
   async ({ caseId, updates }) => {
@@ -170,17 +170,34 @@ const alertsSlice = createSlice({
         state.status = 'failed';
       })
       .addCase(updateCaseBackend.fulfilled, (state, action) => {
+        // Apply optimistic update from backend response if available
         const updatedCaseRaw = action.payload.case;
-        if (!updatedCaseRaw) return;
-        
-        const index = state.items.findIndex(a => a.id === updatedCaseRaw.case_id);
-        if (index !== -1) {
-          const mappedCase = mapCase(updatedCaseRaw);
-          state.items[index] = { ...state.items[index], ...mappedCase };
+        if (updatedCaseRaw) {
+          const index = state.items.findIndex(a => a.id === (updatedCaseRaw.case_id || updatedCaseRaw.id));
+          if (index !== -1) {
+            const mappedCase = mapCase(updatedCaseRaw);
+            state.items[index] = { ...state.items[index], ...mappedCase };
+          }
         }
+        // Note: caller is responsible for dispatching refreshAlerts() for full re-sync
       });
   }
 });
 
 export const { addAlert, setAlerts, selectAlert, closeDetail, advanceAlertState, setOperator, logout } = alertsSlice.actions;
 export default alertsSlice.reducer;
+
+// --- refreshAlerts thunk ---
+// Fetches the latest data from the backend and overwrites the Redux store.
+// Call this after any PATCH to guarantee immediate UI sync.
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+export const refreshAlerts = () => async (dispatch) => {
+  try {
+    const response = await fetch(`${BACKEND_URL}/cases/`);
+    if (!response.ok) return;
+    const data = await response.json();
+    dispatch(alertsSlice.actions.setAlerts((data.items || []).map(mapCase)));
+  } catch (err) {
+    console.error('[refreshAlerts] Failed:', err);
+  }
+};

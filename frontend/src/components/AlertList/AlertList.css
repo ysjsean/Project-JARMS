@@ -8,7 +8,7 @@
 
 .alert-list-header {
   display: grid;
-  grid-template-columns: 140px 100px 2.5fr 2fr 130px 100px 140px;
+  grid-template-columns: 160px 130px 3.2fr 2.3fr 100px 85px 140px;
   padding: 16px 24px;
   font-size: 11px;
   color: var(--text-secondary);
@@ -29,7 +29,7 @@
 /* Alert Row */
 .alert-row {
   display: grid;
-  grid-template-columns: 140px 100px 2.5fr 2fr 130px 100px 140px;
+  grid-template-columns: 160px 130px 3.2fr 2.3fr 100px 85px 140px;
   padding: 16px 24px;
   border-bottom: 1px solid var(--panel-border);
   cursor: pointer;
@@ -87,7 +87,11 @@
   filter: grayscale(1);
   background-color: rgba(0, 0, 0, 0.4) !important;
   border-left: 2px solid #333 !important;
-  pointer-events: none; /* Disable clicking/hovering on resolved rows */
+}
+
+.alert-row.resolved:hover {
+  opacity: 0.5;
+  background-color: rgba(0, 0, 0, 0.5) !important;
 }
 
 .alert-row.resolved .pulse-dot {
@@ -215,8 +219,30 @@
 .pill-container {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px;
 }
+
+/* Beneficiary Cell */
+.beneficiary-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.beneficiary-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+.beneficiary-meta {
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.3px;
+}
+
 .pill {
   padding: 4px 10px;
   border-radius: 4px;

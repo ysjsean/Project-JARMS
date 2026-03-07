@@ -6,7 +6,7 @@ import {
   CheckCircle2, UserCheck, PlusCircle, AlertTriangle, MessageSquare, Info,
   Users, Car, ShieldCheck
 } from 'lucide-react';
-import { updateCaseBackend } from '../../store/alertsSlice';
+import { updateCaseBackend, refreshAlerts } from '../../store/alertsSlice';
 import './AlertDetail.css';
 
 export default function AlertDetail({ alert, onClose }) {
@@ -124,6 +124,16 @@ export default function AlertDetail({ alert, onClose }) {
           {alert.transcript && (
             <div className="mb-4 p-3 bg-black/20 rounded border-l-2 border-[var(--color-med)] italic text-sm text-[#ddd]">
               "{alert.transcript}"
+            </div>
+          )}
+
+          {/* AI Audio Caption / Sound Description */}
+          {alert.audio_caption_text && (
+            <div className="mb-4 p-3 bg-[#10b981]/5 rounded border border-[#10b981]/20">
+              <div className="text-[10px] text-[#10b981] font-mono uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                <Volume2 size={10} /> AI Sound Description
+              </div>
+              <p className="text-sm text-[#ccc] leading-relaxed">{alert.audio_caption_text}</p>
             </div>
           )}
 
@@ -324,7 +334,6 @@ function ActionController({ alert }) {
   };
 
   const handleExecute = async () => {
-    // Transition to dispatched immediately upon execution
     await dispatch(updateCaseBackend({ 
       caseId: alert.id, 
       updates: { 
@@ -332,15 +341,17 @@ function ActionController({ alert }) {
         assigned_operator_id: currentUser?.operator_id
       } 
     }));
+    dispatch(refreshAlerts());
   };
 
   const handleResolve = async () => {
-     await dispatch(updateCaseBackend({ 
+    await dispatch(updateCaseBackend({ 
       caseId: alert.id, 
       updates: { 
         status: 'resolved'
       } 
     }));
+    dispatch(refreshAlerts());
   };
 
   const status = alert.status || alert.actionState || 'new';
@@ -416,7 +427,7 @@ function ActionController({ alert }) {
             {(status === 'dispatched' || status === 'claimed') && (
               <button 
                 onClick={handleResolve}
-                className={`w-full py-2 bg-transparent border border-white/20 text-[var(--text-secondary)] hover:text-white hover:border-white transition-all text-xs mono rounded-lg cursor-pointer ${status === 'claimed' ? 'opacity-50' : ''}`}
+                className={`w-full py-3 bg-[#10b981] text-black font-bold mono tracking-widest rounded-lg hover:bg-[#0ea870] hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all shadow-[0_0_10px_rgba(16,185,129,0.2)] text-sm cursor-pointer ${status === 'claimed' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 disabled={status === 'claimed'}
               >
                 {status === 'claimed' ? 'COMPLETE EXECUTION TO RESOLVE' : 'MARK AS RESOLVED / CLOSED'}

@@ -1,6 +1,6 @@
 import { Mic, CircleDot } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
-import { updateCaseBackend } from '../../store/alertsSlice';
+import { updateCaseBackend, refreshAlerts } from '../../store/alertsSlice';
 import './AlertList.css';
 
 export default function AlertList({ alerts, selectedAlertId, onSelectAlert }) {
@@ -40,7 +40,7 @@ export default function AlertList({ alerts, selectedAlertId, onSelectAlert }) {
       <div className="alert-list-header mono">
         <div className="cell-tier">TIER</div>
         <div className="cell-source flex-center">SOURCE</div>
-        <div className="cell-keywords">KEYWORDS | LANGUAGES</div>
+        <div className="cell-keywords">BENEFICIARY</div>
         <div className="cell-location">LOCATION</div>
         <div className="cell-pitch flex-center">URGENCY %</div>
         <div className="cell-time flex-center">TIME</div>
@@ -80,11 +80,19 @@ export default function AlertList({ alerts, selectedAlertId, onSelectAlert }) {
                 )}
               </div>
 
-              {/* Keywords & Languages Column */}
+              {/* Beneficiary Column */}
               <div className="cell-keywords">
-                <div className="pill-container">
-                  {alert.keywords?.map((kw, i) => renderPill(`"${kw}"`, 'keyword', i))}
-                  {alert.languages?.map((lang, i) => renderPill(lang, 'language', i))}
+                <div className="beneficiary-cell">
+                  <span className="beneficiary-name">
+                    {alert.beneficiary?.full_name || 'Unknown'}
+                  </span>
+                  <span className="beneficiary-meta mono">
+                    {alert.beneficiary?.age ? `Age ${alert.beneficiary.age}` : ''}
+                    {alert.beneficiary?.nric ? ` · ${alert.beneficiary.nric}` : ''}
+                  </span>
+                  <div className="pill-container" style={{ marginTop: '4px' }}>
+                    {alert.languages?.map((lang, i) => renderPill(lang, 'language', i))}
+                  </div>
                 </div>
               </div>
 
@@ -109,29 +117,28 @@ export default function AlertList({ alerts, selectedAlertId, onSelectAlert }) {
               {/* Action Column */}
               <div className="cell-action flex-center">
                 <div className="action-wrapper">
-                  {['processing', 'queued', 'error'].includes(alert.actionState) ? (
+                  {['processing', 'error'].includes(alert.actionState) ? (
                     <div className={`status-tag state-${alert.actionState}`}>
-                      {alert.actionState === 'processing' ? 'AI TRIAGE...'
-                       : alert.actionState === 'queued' ? 'QUEUED'
-                       : 'AI ERROR'}
+                      {alert.actionState === 'processing' ? 'AI TRIAGE...' : 'AI ERROR'}
                     </div>
                   ) : (
                     <button 
                       className={`btn-action mono state-${alert.actionState || 'new'}`}
                       disabled={alert.actionState === 'resolved' || alert.actionState === 'claimed'}
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
                         if (alert.actionState === 'new' || !alert.actionState) {
-                          dispatch(updateCaseBackend({ 
+                          await dispatch(updateCaseBackend({ 
                             caseId: alert.id, 
                             updates: { status: 'claimed', assigned_operator_id: currentUser?.operator_id } 
                           }));
                         } else if (alert.actionState === 'dispatched') {
-                          dispatch(updateCaseBackend({ 
+                          await dispatch(updateCaseBackend({ 
                             caseId: alert.id, 
                             updates: { status: 'resolved' } 
                           }));
                         }
+                        dispatch(refreshAlerts());
                       }}
                     >
                       {alert.actionState === 'new' || !alert.actionState ? 'CLAIM' 
@@ -140,7 +147,7 @@ export default function AlertList({ alerts, selectedAlertId, onSelectAlert }) {
                        : 'CLOSED'}
                     </button>
                   )}
-                  {!['processing', 'queued', 'error'].includes(alert.actionState) && (
+                  {!['processing', 'error'].includes(alert.actionState) && (
                     <div className="action-dots">
                       <span className={`dot ${alert.actionState === 'new' || !alert.actionState ? 'dot-active' : ''}`}></span>
                       <span className={`dot ${alert.actionState === 'claimed' ? 'dot-active' : ''}`}></span>

@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, LogOut } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
-import { supabase } from '../../services/supabaseClient';
 import { logout } from '../../store/alertsSlice';
 import './Header.css';
 
 export default function Header() {
   const [time, setTime] = useState(new Date());
+  const [dbOnline, setDbOnline] = useState(null); // null = checking
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const alerts = useSelector((state) => state.alerts.items);
@@ -16,6 +16,22 @@ export default function Header() {
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Ping backend to check connectivity
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+        const res = await fetch(`${backendUrl}/cases/`, { signal: AbortSignal.timeout(5000) });
+        setDbOnline(res.ok);
+      } catch {
+        setDbOnline(false);
+      }
+    };
+    checkConnection();
+    const interval = setInterval(checkConnection, 30000); // re-check every 30s
+    return () => clearInterval(interval);
   }, []);
 
   const urgentCount = alerts.filter(a => 
@@ -56,10 +72,14 @@ export default function Header() {
         
         {/* Connection Status Indicator */}
         <div className="flex items-center gap-2 text-[10px] font-mono tracking-widest opacity-70 mt-1">
-           <div className={`w-1.5 h-1.5 rounded-full ${supabase ? 'bg-[#10b981] animate-pulse' : 'bg-[#ffb800]'} `} />
-           <span className={supabase ? 'text-[#10b981]' : 'text-[#ffb800]'}>
-             {supabase ? 'SUPABASE REALTIME : CONNECTED' : 'LOCAL MOCK : OFFLINE'}
-           </span>
+          <div className={`w-1.5 h-1.5 rounded-full ${
+            dbOnline === null ? 'bg-gray-400 animate-pulse' 
+            : dbOnline ? 'bg-[#10b981] animate-pulse' 
+            : 'bg-red-500'
+          }`} />
+          <span className={dbOnline === null ? 'text-gray-400' : dbOnline ? 'text-[#10b981]' : 'text-red-400'}>
+            {dbOnline === null ? 'CHECKING...' : dbOnline ? 'DATABASE : ONLINE' : 'DATABASE : OFFLINE'}
+          </span>
         </div>
       </div>
 
@@ -72,7 +92,7 @@ export default function Header() {
         </div>
         <button 
           onClick={handleLogout}
-          className="ml-6 p-2 rounded-full border border-[var(--panel-border)] text-[var(--text-secondary)] hover:text-white hover:border-white transition-colors bg-[var(--panel-bg)]"
+          className="ml-6 p-2 rounded-full border border-[var(--panel-border)] text-[var(--text-secondary)] hover:text-[#ff2b3b] hover:border-[#ff2b3b] hover:bg-[#ff2b3b]/10 transition-all bg-[var(--panel-bg)] hover:shadow-[0_0_15px_rgba(255,43,59,0.3)]"
           title="Logout"
         >
           <LogOut size={18} />
