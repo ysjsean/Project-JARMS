@@ -61,14 +61,25 @@ def load_triage_protocol(filepath: str = TRIAGE_PROTOCOL_FILE) -> str:
         return f.read()
 
 
-def _load_allowed_actions() -> List[str]:
-    """Load the allowed actions list from policy.json."""
+def _load_policy() -> dict:
+    """Load the full policy.json."""
     try:
         with open(POLICY_FILE, "r", encoding="utf-8") as f:
-            policy = json.load(f)
-        return policy.get("allowed_actions", [])
+            return json.load(f)
     except Exception:
-        return []
+        return {}
+
+
+def _load_allowed_actions() -> List[str]:
+    return _load_policy().get("allowed_actions", [])
+
+
+def _load_discretionary_actions() -> List[str]:
+    return _load_policy().get("discretionary_actions", [])
+
+
+def _load_mandatory_actions(bucket: str) -> List[str]:
+    return _load_policy().get("mandatory_actions_by_bucket", {}).get(bucket, [])
 
 
 # -----------------------------
@@ -171,10 +182,13 @@ def run_triage(
     else:
         patient_str += "- Medical history: Not available\n"
 
-    # -- Build allowed actions string for the prompt --
+    # -- Build action context for the prompt --
     allowed_actions = _load_allowed_actions()
-    actions_str = (
-        ", ".join(f'"{a}"' for a in allowed_actions) if allowed_actions else ""
+    discretionary_actions = _load_discretionary_actions()
+    discretionary_str = (
+        ", ".join(f'"{a}"' for a in discretionary_actions)
+        if discretionary_actions
+        else ""
     )
 
     system_prompt = f"""You are an AI triage assistant for Project JARMS — a 24/7 emergency monitoring service for elderly residents living alone in Singapore.
@@ -187,16 +201,19 @@ CRITICAL RULES:
 1. Prioritise ACOUSTIC/SITUATION SIGNALS over transcription if they conflict.
 2. Always follow the classification rules in order.
 3. urgency_bucket MUST be one of: life_threatening, emergency, requires_review, minor_emergency, non_emergency.
-4. recommended_actions MUST only contain values from this allowed list: [{actions_str}]
-5. Use the patient context (language, medical history) to apply Patient History Modifiers from the protocol.
-6. The SBAR section is mandatory and must be clinically useful for a human operator.
-7. Return ONLY a valid JSON object. No markdown fences, no preamble.
+4. Mandatory actions for each bucket are applied automatically by the system — you do NOT need to include them.
+5. Your job is to decide which ADDITIONAL discretionary actions are needed based on the specific situation.
+6. recommended_actions MUST only contain values from this discretionary list: [{discretionary_str}]
+7. Think carefully: does this situation need police (call_999)? Fire/ambulance (call_995)? Private ambulance (call_private_ambulance_1777)? Volunteers (call_sgsecure_volunteers)? Lift lobby notification (notify_lift_lobby)?
+8. Use the patient context (language, medical history) to apply Patient History Modifiers from the protocol.
+9. The SBAR section is mandatory and must be clinically useful for a human operator.
+10. Return ONLY a valid JSON object. No markdown fences, no preamble.
 
 Return JSON with keys:
 - urgency_bucket: one of the five valid buckets
 - triage_flags: object of boolean flags as defined in the protocol
 - reasoning: concise explanation referencing specific signals
-- recommended_actions: list of strings from the allowed actions
+- recommended_actions: list of DISCRETIONARY actions you recommend for this specific situation
 - sbar: object with situation, background, assessment, recommendation
 """
 
@@ -233,19 +250,24 @@ TRANSCRIPT:
         else:
             result["urgency_bucket"] = bucket
 
-        # Validate recommended_actions against allowed list
-        if allowed_actions:
-            raw_actions = result.get("recommended_actions") or []
-            if isinstance(raw_actions, str):
-                raw_actions = [raw_actions]
-            result["recommended_actions"] = [
-                a for a in raw_actions if a in allowed_actions
-            ]
-            if not result["recommended_actions"]:
-                result["recommended_actions"] = [
-                    "call_patient_now",
-                    "inform_emergency_contact",
-                ]
+        # Build final recommended_actions:
+        #   1. Start with mandatory actions for this bucket (always applied)
+        #   2. Validate LLM's discretionary picks against allowed list
+        #   3. Merge: mandatory first, then validated discretionary additions
+        bucket = result["urgency_bucket"]
+        mandatory = _load_mandatory_actions(bucket)
+
+        raw_actions = result.get("recommended_actions") or []
+        if isinstance(raw_actions, str):
+            raw_actions = [raw_actions]
+        validated_discretionary = [a for a in raw_actions if a in allowed_actions]
+
+        # Merge: mandatory first, then discretionary additions (deduped)
+        merged = list(mandatory)
+        for action in validated_discretionary:
+            if action not in merged:
+                merged.append(action)
+        result["recommended_actions"] = merged if merged else ["call_patient_now"]
 
         # Ensure sbar is present
         if "sbar" not in result or not isinstance(result.get("sbar"), dict):

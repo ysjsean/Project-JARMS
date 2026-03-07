@@ -34,7 +34,7 @@
     "minor_emergency": 600,
     "non_emergency": 1800
   },
-  "recommended_primary_actions_by_bucket": {
+  "mandatory_actions_by_bucket": {
     "life_threatening": [
       "call_patient_now",
       "call_995",
@@ -42,21 +42,28 @@
     ],
     "emergency": [
       "call_patient_now",
-      "inform_emergency_contact",
-      "call_995"
+      "inform_emergency_contact"
     ],
     "requires_review": [
       "call_patient_now",
       "inform_emergency_contact"
     ],
     "minor_emergency": [
-      "call_patient_now",
-      "call_private_ambulance_1777"
+      "call_patient_now"
     ],
     "non_emergency": [
       "call_patient_now"
     ]
   },
+  "discretionary_actions": [
+    "call_995",
+    "call_999",
+    "call_private_ambulance_1777",
+    "call_ed_by_private_transport",
+    "call_sgsecure_volunteers",
+    "notify_lift_lobby",
+    "inform_emergency_contact"
+  ],
   "allowed_actions": [
     "call_patient_now",
     "inform_emergency_contact",

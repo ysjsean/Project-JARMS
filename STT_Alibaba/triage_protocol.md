@@ -188,45 +188,51 @@ These rules override ALL other logic:
 
 ---
 
-## 7. Action Recommendations by Bucket
+## 7. Action Model — Mandatory + Discretionary
 
-### `life_threatening`
+Actions are split into two categories:
 
-- `call_patient_now`
-- `call_995`
-- `inform_emergency_contact`
-- _(if available)_: `call_sgsecure_volunteers`, `notify_lift_lobby`
+**Mandatory actions** are applied automatically by the system for each bucket. The AI does NOT need to include these — they are always present.
 
-### `emergency`
+**Discretionary actions** are situation-dependent. The AI must decide which additional actions are needed based on the specific audio, transcript, and patient context.
 
-- `call_patient_now`
-- `inform_emergency_contact`
-- _If no contact or symptoms worsen_: `call_995`
-- _If transport needed but SCDF threshold not met_: `call_private_ambulance_1777`
+### Mandatory Actions by Bucket
 
-### `requires_review`
+| Bucket             | Mandatory (always applied)                                 |
+| ------------------ | ---------------------------------------------------------- |
+| `life_threatening` | `call_patient_now`, `call_995`, `inform_emergency_contact` |
+| `emergency`        | `call_patient_now`, `inform_emergency_contact`             |
+| `requires_review`  | `call_patient_now`, `inform_emergency_contact`             |
+| `minor_emergency`  | `call_patient_now`                                         |
+| `non_emergency`    | `call_patient_now`                                         |
 
-- `call_patient_now`
-- `inform_emergency_contact`
-- _If unreachable and elderly alone_: `notify_lift_lobby`, `call_sgsecure_volunteers`
-- _If red flag emerges_: `call_995`
+### Discretionary Actions (AI decides based on context)
 
-### `minor_emergency`
+The AI should actively consider and add these when the situation warrants:
 
-- `call_patient_now`
-- _If mobility issue or no safe transport_: `call_private_ambulance_1777`
-- _Otherwise_: `call_ed_by_private_transport`
+| Action                         | When to add                                                                                           |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `call_995`                     | Fire, medical emergency needing SCDF ambulance (for emergency/lower buckets where it's not mandatory) |
+| `call_999`                     | Suspected violence, abuse, intrusion, threats to safety, forced entry needed                          |
+| `call_private_ambulance_1777`  | Transport needed but SCDF threshold not met                                                           |
+| `call_ed_by_private_transport` | Stable patient who can get to ED by taxi/family                                                       |
+| `call_sgsecure_volunteers`     | Welfare check support, extra hands on scene                                                           |
+| `notify_lift_lobby`            | Prepare lift access for responders, especially for high-floor units                                   |
+| `inform_emergency_contact`     | For lower buckets where it's not mandatory but family should know                                     |
 
-### `non_emergency`
+### Decision Examples
 
-- `call_patient_now`
-- `inform_emergency_contact`
+- **Fall with head bleeding + on warfarin** → life_threatening mandatory actions + discretionary: `notify_lift_lobby`, `call_sgsecure_volunteers`
+- **Kitchen fire, smoke inhalation** → emergency mandatory actions + discretionary: `call_995`, `notify_lift_lobby`
+- **Raised voices, suspected abuse** → requires_review mandatory actions + discretionary: `call_999`
+- **COPD flare, needs GP visit** → minor_emergency mandatory actions + discretionary: `call_private_ambulance_1777` or `call_ed_by_private_transport`
+- **Accidental button press** → non_emergency mandatory actions only (no discretionary needed)
 
 ---
 
-## 8. Allowed Actions (Enumerated)
+## 8. All Allowed Actions (Reference)
 
-The AI MUST only recommend from this list. No free-text actions:
+The complete set of valid actions (mandatory + discretionary). No free-text actions are permitted:
 
 - `call_patient_now`
 - `inform_emergency_contact`
@@ -274,7 +280,7 @@ The AI triage model MUST return a structured JSON object in exactly this format:
     "location_unverified": false
   },
   "reasoning": "Plain-language explanation of why this bucket was assigned, referencing specific transcript phrases and audio signals.",
-  "recommended_actions": ["call_patient_now", "call_995"],
+  "recommended_actions": ["call_999", "notify_lift_lobby"],
   "sbar": {
     "situation": "Brief description of what the patient reported or what was detected.",
     "background": "Relevant patient history, medical conditions, languages spoken, and context.",

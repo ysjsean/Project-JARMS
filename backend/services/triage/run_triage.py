@@ -97,40 +97,54 @@ def _normalize_recommended_actions(
     urgency_bucket: str,
     policy: Dict[str, Any],
 ) -> list[str]:
-    actions: list[str] = []
+    """
+    Build final action list:
+      1. Start with mandatory actions for this bucket (always applied)
+      2. Parse and validate LLM's discretionary picks against allowed list
+      3. Merge: mandatory first, then validated discretionary (deduped)
+    """
+    # -- Parse raw LLM output into a flat list --
+    llm_actions: list[str] = []
 
     if isinstance(raw_actions, list):
-        actions = [str(a).strip() for a in raw_actions if str(a).strip()]
+        llm_actions = [str(a).strip() for a in raw_actions if str(a).strip()]
     elif isinstance(raw_actions, str):
         if "," in raw_actions:
-            actions = [a.strip() for a in raw_actions.split(",") if a.strip()]
+            llm_actions = [a.strip() for a in raw_actions.split(",") if a.strip()]
         else:
             lines = [
                 line.strip(" -1234567890.)\t") for line in raw_actions.splitlines()
             ]
-            actions = [line.strip() for line in lines if line.strip()]
+            llm_actions = [line.strip() for line in lines if line.strip()]
     elif isinstance(raw_actions, dict):
         primary = raw_actions.get("primary_action")
         secondary = raw_actions.get("secondary_actions", [])
         if primary:
-            actions.append(str(primary).strip())
+            llm_actions.append(str(primary).strip())
         if isinstance(secondary, list):
-            actions.extend(str(a).strip() for a in secondary if str(a).strip())
+            llm_actions.extend(str(a).strip() for a in secondary if str(a).strip())
 
-    # Validate against allowed actions from policy
+    # -- Validate LLM picks against allowed actions --
     allowed = policy.get("allowed_actions", [])
     if allowed:
-        actions = [a for a in actions if a in allowed]
+        llm_actions = [a for a in llm_actions if a in allowed]
 
-    if not actions:
-        actions = policy.get("recommended_primary_actions_by_bucket", {}).get(
-            urgency_bucket,
-            ["call_patient_now", "inform_emergency_contact"],
-        )
+    # -- Merge: mandatory first, then LLM discretionary additions --
+    mandatory = policy.get("mandatory_actions_by_bucket", {}).get(
+        urgency_bucket, ["call_patient_now"]
+    )
+    merged = list(mandatory)
+    for action in llm_actions:
+        if action not in merged:
+            merged.append(action)
 
+    if not merged:
+        merged = ["call_patient_now"]
+
+    # -- Dedupe while preserving order --
     deduped = []
     seen = set()
-    for action in actions:
+    for action in merged:
         if action and action not in seen:
             deduped.append(action)
             seen.add(action)
