@@ -77,10 +77,6 @@ async def list_cases():
         response = (
             supabase.table("cases")
             .select("*, pab_beneficiaries(*)")
-            .not_.is_("transcript_raw", None)
-            .not_.is_("sbar_json", None)
-            .not_.is_("recommended_actions", None)
-            .neq("recommended_actions", "{}")
             .order("opened_at", desc=True)
             .execute()
         )
