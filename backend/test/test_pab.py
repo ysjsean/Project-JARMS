@@ -1,6 +1,6 @@
 import pytest
 
-from services.asr import get_pab_beneficiary_by_nric
+from services.situationaleval import get_pab_beneficiary_by_nric
 
 
 @pytest.mark.asyncio

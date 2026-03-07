@@ -18,9 +18,19 @@ AUDIO_BUCKET = os.getenv("SUPABASE_AUDIO_BUCKET", "pab_audio")
 async def list_cases():
     try:
         response = (
-            supabase.table("cases").select("*").order("opened_at", desc=True).execute()
+            supabase.table("cases")
+            .select(
+                """
+                *,
+                pab_beneficiaries(*)
+                """
+            )
+            .order("opened_at", desc=True)
+            .execute()
         )
+
         return {"items": response.data}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -121,7 +131,6 @@ async def create_case_from_audio(
                 "emergency_contact": beneficiary.get("emergency_contact"),
             },
         }
-
     except HTTPException:
         raise
     except Exception as e:

@@ -7,6 +7,10 @@
     {
       "name": "frontend",
       "path": "frontend"
+    },
+    {
+      "name": "STT_Alibaba",
+      "path": "STT_Alibaba"
     }
   ],
   "settings": {
