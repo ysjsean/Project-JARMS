@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.settings import settings
 from routers.cases import router as cases_router
+from routers.case_events import router as case_events_router
 
 
 @asynccontextmanager
@@ -41,6 +42,7 @@ app.add_middleware(
 )
 
 app.include_router(cases_router, prefix="/cases", tags=["Cases"])
+app.include_router(case_events_router, prefix="/case-events", tags=["Case Events"])
 
 
 @app.get("/health", tags=["Health"])
