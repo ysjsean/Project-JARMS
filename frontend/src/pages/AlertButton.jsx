@@ -8,15 +8,6 @@ const STATUS = {
   ERROR: "error",
 };
 
-const BACKEND_URL = "/api/alert/audio";
-
-function simulatedSend(blob) {
-  return new Promise((resolve) => {
-    console.info("[Guardian] Sending blob:", blob);
-    setTimeout(() => resolve({ ok: true }), 1200);
-  });
-}
-
 const fmt = (s) =>
   `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
@@ -25,6 +16,7 @@ export default function AlertButton() {
   const [seconds, setSeconds] = useState(0);
   const [log, setLog] = useState([]);
   const [audioURL, setAudioURL] = useState(null);
+  const [buttonId, setButtonId] = useState("BTN-1001");
 
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
@@ -34,8 +26,9 @@ export default function AlertButton() {
     () => () => {
       clearInterval(timerRef.current);
       mediaRecorderRef.current?.stream?.getTracks().forEach((t) => t.stop());
+      if (audioURL) URL.revokeObjectURL(audioURL);
     },
-    [],
+    [audioURL],
   );
 
   const addLog = (msg, type = "info") =>
@@ -51,14 +44,17 @@ export default function AlertButton() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       chunksRef.current = [];
+
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
+
       recorder.onstop = handleRecordingStop;
       recorder.start(100);
       mediaRecorderRef.current = recorder;
       setStatus(STATUS.RECORDING);
       setSeconds(0);
+
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
       addLog("Recording started — microphone active", "record");
     } catch (err) {
@@ -75,17 +71,20 @@ export default function AlertButton() {
 
   async function handleRecordingStop() {
     const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-    setAudioURL(URL.createObjectURL(blob));
+    const url = URL.createObjectURL(blob);
+    setAudioURL(url);
+
     addLog(
       `Recording captured — ${(blob.size / 1024).toFixed(1)} KB`,
       "success",
     );
     setStatus(STATUS.SENDING);
-    addLog("Sending to server…", "info");
+    addLog("Uploading audio + creating case…", "info");
+
     try {
-      await simulatedSend(blob);
+      const result = await sendAlertAudio(blob, buttonId);
       setStatus(STATUS.SUCCESS);
-      addLog("Server confirmed receipt", "success");
+      addLog(`Case created: ${result.case?.case_id ?? "ok"}`, "success");
     } catch (err) {
       setStatus(STATUS.ERROR);
       addLog(`Send failed: ${err.message}`, "error");
@@ -94,6 +93,7 @@ export default function AlertButton() {
 
   function handlePress() {
     if ([STATUS.IDLE, STATUS.SUCCESS, STATUS.ERROR].includes(status)) {
+      if (audioURL) URL.revokeObjectURL(audioURL);
       setAudioURL(null);
       startRecording();
     } else if (status === STATUS.RECORDING) {
@@ -104,6 +104,7 @@ export default function AlertButton() {
   function handleReset() {
     setStatus(STATUS.IDLE);
     setSeconds(0);
+    if (audioURL) URL.revokeObjectURL(audioURL);
     setAudioURL(null);
     setLog([]);
   }
@@ -113,7 +114,7 @@ export default function AlertButton() {
     recording: {
       bg: "#DC2626",
       color: "#fff",
-      label: `RECORDING  ${fmt(seconds)}`,
+      label: `RECORDING ${fmt(seconds)}`,
       icon: "■",
     },
     sending: { bg: "#D97706", color: "#fff", label: "SENDING…", icon: "↑" },
@@ -138,10 +139,8 @@ export default function AlertButton() {
       className="page-container"
       style={{ fontFamily: "'DM Mono', 'Courier New', monospace" }}
     >
-      {/* Centered card */}
       <div style={{ maxWidth: 400, margin: "0 auto" }}>
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 36 }}>
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
           <div
             style={{
               display: "inline-block",
@@ -157,6 +156,7 @@ export default function AlertButton() {
           >
             PERSONAL ALERT
           </div>
+
           <h1
             style={{
               fontSize: 22,
@@ -168,12 +168,28 @@ export default function AlertButton() {
           >
             Send an Alert
           </h1>
-          <p style={{ fontSize: 12, color: "#9CA3AF", margin: 0 }}>
+
+          <p style={{ fontSize: 12, color: "#9CA3AF", margin: "0 0 12px" }}>
             Press to begin recording. Press again to send.
           </p>
+
+          <input
+            value={buttonId}
+            onChange={(e) => setButtonId(e.target.value)}
+            placeholder="BTN-1001"
+            disabled={status === STATUS.RECORDING || status === STATUS.SENDING}
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              border: "1px solid #E5E7EB",
+              borderRadius: 8,
+              padding: "10px 12px",
+              fontFamily: "inherit",
+              fontSize: 12,
+            }}
+          />
         </div>
 
-        {/* Button */}
         <div
           style={{
             display: "flex",
@@ -214,6 +230,7 @@ export default function AlertButton() {
               />
             </>
           )}
+
           <button
             onClick={handlePress}
             disabled={status === STATUS.SENDING}
@@ -255,7 +272,6 @@ export default function AlertButton() {
           </button>
         </div>
 
-        {/* Playback */}
         {audioURL && (
           <div
             style={{
@@ -285,7 +301,6 @@ export default function AlertButton() {
           </div>
         )}
 
-        {/* Log */}
         {log.length > 0 && (
           <div
             style={{
@@ -328,6 +343,7 @@ export default function AlertButton() {
                 clear
               </button>
             </div>
+
             <ul
               style={{
                 listStyle: "none",
@@ -369,4 +385,25 @@ export default function AlertButton() {
       `}</style>
     </div>
   );
+}
+
+async function sendAlertAudio(blob, buttonId) {
+  const formData = new FormData();
+  formData.append("button_id", buttonId);
+  formData.append("audio", blob, `alert-${Date.now()}.webm`);
+
+  const res = await fetch(
+    `${import.meta.env.VITE_API_URL}/cases/audio`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Upload failed");
+  }
+
+  return res.json();
 }

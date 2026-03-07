@@ -3,6 +3,7 @@ import useAlertWebSocket from "./hooks/useAlertWebSocket";
 
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
+import AlertButton from "./pages/AlertButton";
 
 function App() {
   // Ignite the live socket stream handler
@@ -13,6 +14,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/alert" element={<AlertButton />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
