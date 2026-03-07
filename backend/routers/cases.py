@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import Response
 
 from core.supabase import supabase
 from services.triage.run_triage import run_pipeline_from_storage_path
@@ -72,6 +73,7 @@ def get_audio_duration_seconds(
 @router.get("/")
 async def list_cases():
     try:
+        # User requested to see all data, so we remove the strict None filters
         response = (
             supabase.table("cases")
             .select("*, pab_beneficiaries(*)")
@@ -94,6 +96,78 @@ async def list_cases():
 
         return {"items": items}
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/{case_id}")
+async def update_case(case_id: str, payload: dict):
+    """
+    Updates case status, operator assignment, etc.
+    Payload can include: status, assigned_operator_id
+    """
+    try:
+        # If status is being updated to resolved, set closed_at
+        if payload.get("status") == "resolved":
+            payload["closed_at"] = datetime.now(timezone.utc).isoformat()
+
+        response = (
+            supabase.table("cases")
+            .update(payload)
+            .eq("case_id", case_id)
+            .execute()
+        )
+
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Case not found")
+
+        return {"message": "Case updated", "case": response.data[0]}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/audio/{case_id}")
+async def get_case_audio(case_id: str):
+    """
+    Proxies audio stream from Supabase Storage.
+    """
+    try:
+        # Get case to find audio path
+        case_res = (
+            supabase.table("cases")
+            .select("audio_file_url")
+            .eq("case_id", case_id)
+            .single()
+            .execute()
+        )
+        
+        if not case_res.data:
+            raise HTTPException(status_code=404, detail="Case not found")
+            
+        storage_path = case_res.data["audio_file_url"]
+        if not storage_path:
+            raise HTTPException(status_code=404, detail="Audio not found")
+
+        # Download from Supabase
+        # Note: In a production app, you might use storage.from_().get_public_url() 
+        # but the user requested a backend API for this.
+        audio_data = supabase.storage.from_(AUDIO_BUCKET).download(storage_path)
+        
+        return Response(content=audio_data, media_type="audio/webm")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/operators")
+async def list_operators():
+    """
+    Returns the list of all available operators for the login screen.
+    """
+    try:
+        response = supabase.table("operators").select("*").execute()
+        return {"operators": response.data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
