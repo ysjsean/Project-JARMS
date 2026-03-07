@@ -1,0 +1,79 @@
+.stats-bar {
+  display: flex;
+  height: 100%;
+}
+
+.stat-card {
+  flex: 1;
+  padding: 20px 24px;
+  border-right: 1px solid var(--panel-border);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  background-color: var(--panel-bg);
+  transition: background-color 0.2s;
+}
+
+.stat-card:hover {
+  background-color: #17131d;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.stat-label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.stat-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Specific styling for each status */
+.urgent-stat::before {
+  background-color: var(--color-urgent);
+  box-shadow: 0 0 10px var(--color-urgent);
+}
+.urgent-stat .stat-value {
+  color: var(--color-urgent);
+}
+
+.med-stat::before {
+  background-color: var(--color-med);
+}
+.med-stat .stat-value {
+  color: var(--color-med);
+}
+
+.low-stat::before {
+  background-color: var(--color-low);
+}
+.low-stat .stat-value {
+  color: var(--color-low);
+}
+
+.total-stat::before {
+  background-color: var(--color-active);
+}
+.total-stat .stat-value {
+  color: var(--color-active);
+}
