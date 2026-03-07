@@ -1,94 +1,67 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
-const generatePastDate = (secondsAgo) => {
-  const d = new Date(Date.now() - secondsAgo * 1000);
-  return d.toISOString();
-};
-
-const dummyData = [
-  {
-    id: '207',
-    tier: 'med',
-    source: 'audio',
-    keywords: ['silence'],
-    languages: ['Mandarin'],
-    location: 'Blk 838 #8-24, Tampines',
-    coordinates: '1.3711°N, 103.8451°E',
-    pitch: 31,
-    timeAgo: 10,
-    timestamp: generatePastDate(10),
-    actionState: 'new', // new, claimed, dispatched, resolved
-    metadata: {
-      mlSource: 'Audio ML detection',
-      pitchScoreDetail: 'Pitch score = ML model confidence based on audio volume, frequency spikes, and speech pattern vs background noise ratio.',
-      dialectDetected: 'Mandarin',
-      falsePositiveAnalysis: {
-        extraClicks: { passed: true, desc: 'Single press - not filtered' },
-        backgroundNoise: { passed: true, desc: 'Clear audio channel' },
-        silentAudio: { passed: false, desc: 'Flagged - no vocal input, may be incapacitated' }
-      }
-    }
-  },
-  {
-    id: '156',
-    tier: 'urgent',
-    source: 'audio',
-    keywords: ['வலிக்குது'], // Tamil for "it hurts"
-    languages: ['Tamil'],
-    location: 'Blk 102 #11-20, Bedok',
-    coordinates: '1.3236°N, 103.9273°E',
-    pitch: 80,
-    timeAgo: 40,
-    timestamp: generatePastDate(40),
-    actionState: 'new',
-    metadata: {
-      mlSource: 'Audio ML detection',
-      pitchScoreDetail: 'Pitch score = ML model confidence based on audio volume, frequency spikes, and speech pattern vs background noise ratio.',
-      dialectDetected: 'Tamil',
-      falsePositiveAnalysis: {
-        extraClicks: { passed: true, desc: 'Single press - not filtered' },
-        backgroundNoise: { passed: true, desc: 'Clear audio channel' },
-        silentAudio: { passed: true, desc: 'Audio present' }
-      }
-    }
-  },
-  {
-    id: '155',
-    tier: 'low',
-    source: 'btn',
-    keywords: ['background'],
-    languages: ['Hokkien'],
-    location: 'Blk 967 #13-76, Jurong West',
-    coordinates: '1.3404°N, 103.6968°E',
-    pitch: 10,
-    timeAgo: 60,
-    timestamp: generatePastDate(60),
-    actionState: 'claimed'
-  },
-  {
-    id: '154',
-    tier: 'urgent',
-    source: 'btn',
-    keywords: ['救命'], // Chinese for "help"
-    languages: ['Hakka', 'Tamil'],
-    location: 'Blk 046 #10-90, Bishan',
-    coordinates: '1.3526°N, 103.8352°E',
-    pitch: 85,
-    timeAgo: 125,
-    timestamp: generatePastDate(125),
-    actionState: 'dispatched'
+// Helper to unify mapping from backend schema to frontend structure
+export const mapCase = (c) => ({
+  id: c.case_id || c.id,
+  tier: c.urgency_bucket || 'requires_review',
+  source: c.source === 'pab_audio' ? 'audio' : 'btn',
+  location: c.address ? `${c.address} ${c.unit_number || ''}`.trim() : 'Unknown Location',
+  queue_score: c.queue_score || 0,
+  opened_at: c.opened_at || c.created_at,
+  closed_at: c.closed_at,
+  actionState: c.status || 'new',
+  audio_file_url: c.audio_file_url,
+  audio_duration_seconds: c.audio_duration_seconds,
+  transcript: c.transcript_english || c.transcript_raw || '',
+  sbar: typeof c.sbar_json === 'string' ? JSON.parse(c.sbar_json) : c.sbar_json,
+  triage_flags: c.triage_flags || [],
+  recommended_actions: c.recommended_actions || [],
+  languages: [c.primary_language, c.secondary_language].filter(Boolean),
+  keywords: c.triage_flags || [],
+  button_location: c.button_location,
+  beneficiary: {
+    nric: c.nric,
+    full_name: c.full_name,
+    age: c.age,
+    primary_language: c.primary_language,
+    secondary_language: c.secondary_language,
+    address: c.address,
+    unit_number: c.unit_number,
+    phone_number: c.phone_number,
+    emergency_contact_name: c.emergency_contact_name,
+    emergency_contact: c.emergency_contact,
+    primary_hospital: c.primary_hospital,
+    insurance_ward_class: c.insurance_ward_class,
+    patient_medical_summary: c.patient_medical_summary,
+    dnr_status: c.dnr_status,
+    consent_private_ambulance: c.consent_private_ambulance
   }
-];
+});
 
-// Async thunk to simulate fetching initial alerts from a dummy API
+// Async thunk to fetch initial alerts from backend
 export const fetchInitialAlerts = createAsyncThunk(
   'alerts/fetchInitial',
   async () => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(dummyData);
-      }, 1000); // simulate 1s network latency
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+    const response = await fetch(`${backendUrl}/cases/`);
+    if (!response.ok) throw new Error('Failed to fetch cases');
+    const data = await response.json();
+    return (data.items || []).map(mapCase);
+  }
+);
+
+// Async thunk to update case in backend
+export const updateCaseBackend = createAsyncThunk(
+  'alerts/updateCaseBackend',
+  async ({ caseId, updates }) => {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+    const response = await fetch(`${backendUrl}/cases/${caseId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
     });
+    if (!response.ok) throw new Error('Failed to update case');
+    return await response.json();
   }
 );
 
@@ -98,15 +71,27 @@ const alertsSlice = createSlice({
     items: [],
     selectedAlertId: null,
     status: 'idle', // idle, loading, succeeded, failed
-    currentUser: { id: 'A1', name: 'Agent Priya' }, // simulated logged-in agent
+    currentUser: null, // Start with null for login
   },
   reducers: {
+    setOperator: (state, action) => {
+      state.currentUser = action.payload;
+    },
+    logout: (state) => {
+      state.currentUser = null;
+    },
     addAlert: (state, action) => {
+      const exists = state.items.some(item => item.id === action.payload.id);
+      if (exists) return;
+
       state.items.unshift(action.payload);
-      // Ensure we don't have too many fake items, trim to last 30
-      if (state.items.length > 30) {
+      if (state.items.length > 50) {
         state.items.pop();
       }
+    },
+    setAlerts: (state, action) => {
+      state.items = action.payload;
+      state.status = 'succeeded';
     },
     selectAlert: (state, action) => {
       // Toggle selection: if clicking the same one, deselect it
@@ -120,7 +105,8 @@ const alertsSlice = createSlice({
       state.selectedAlertId = null;
     },
     advanceAlertState: (state, action) => {
-      const { id, agent } = action.payload;
+      // Local optimistic update
+      const { id } = action.payload;
       const alert = state.items.find(a => a.id === id);
       
       if (alert) {
@@ -138,8 +124,8 @@ const alertsSlice = createSlice({
 
         alert.actionHistory.push({
           state: alert.actionState,
-          agentId: agent.id,
-          agentName: agent.name,
+          agentId: state.currentUser?.operator_id || state.currentUser?.id,
+          agentName: state.currentUser?.username || state.currentUser?.name,
           timestamp: now
         });
       }
@@ -156,9 +142,19 @@ const alertsSlice = createSlice({
       })
       .addCase(fetchInitialAlerts.rejected, (state) => {
         state.status = 'failed';
+      })
+      .addCase(updateCaseBackend.fulfilled, (state, action) => {
+        const updatedCaseRaw = action.payload.case;
+        if (!updatedCaseRaw) return;
+        
+        const index = state.items.findIndex(a => a.id === updatedCaseRaw.case_id);
+        if (index !== -1) {
+          const mappedCase = mapCase(updatedCaseRaw);
+          state.items[index] = { ...state.items[index], ...mappedCase };
+        }
       });
   }
 });
 
-export const { addAlert, selectAlert, closeDetail, advanceAlertState } = alertsSlice.actions;
+export const { addAlert, setAlerts, selectAlert, closeDetail, advanceAlertState, setOperator, logout } = alertsSlice.actions;
 export default alertsSlice.reducer;

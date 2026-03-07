@@ -8,7 +8,7 @@
 
 .alert-list-header {
   display: grid;
-  grid-template-columns: 80px 80px 2.5fr 2fr 100px 80px 100px;
+  grid-template-columns: 140px 100px 2.5fr 2fr 130px 100px 140px;
   padding: 16px 24px;
   font-size: 11px;
   color: var(--text-secondary);
@@ -29,7 +29,7 @@
 /* Alert Row */
 .alert-row {
   display: grid;
-  grid-template-columns: 80px 80px 2.5fr 2fr 100px 80px 100px;
+  grid-template-columns: 140px 100px 2.5fr 2fr 130px 100px 140px;
   padding: 16px 24px;
   border-bottom: 1px solid var(--panel-border);
   cursor: pointer;
@@ -48,24 +48,76 @@
   border-left: 2px solid var(--color-active);
 }
 
-/* Base borders by tier */
+/* Base backgrounds by tier */
+.tier-life_threatening {
+  background-color: rgba(255, 0, 0, 0.08); /* Stronger red tint for life threatening */
+}
+.tier-life_threatening:hover {
+  background-color: rgba(255, 0, 0, 0.12);
+}
+.tier-life_threatening.selected {
+  background-color: rgba(255, 0, 0, 0.2);
+  border-left: 2px solid var(--color-life-threatening);
+}
+
+.tier-emergency {
+  background-color: rgba(255, 43, 59, 0.05); /* Original urgent tint */
+}
+.tier-emergency:hover {
+  background-color: rgba(255, 43, 59, 0.08);
+}
+.tier-emergency.selected {
+  background-color: rgba(255, 43, 59, 0.15);
+  border-left: 2px solid var(--color-emergency);
+}
+
+.tier-requires_review {
+  background-color: rgba(255, 184, 0, 0.03); /* Original med tint */
+}
+.tier-requires_review:hover {
+  background-color: rgba(255, 184, 0, 0.05);
+}
+.tier-requires_review.selected {
+  background-color: rgba(255, 184, 0, 0.1);
+  border-left: 2px solid var(--color-requires-review);
+}
+
+.alert-row.resolved {
+  opacity: 0.4;
+  filter: grayscale(0.7);
+  background-color: rgba(255, 255, 255, 0.02) !important;
+  border-left: 2px solid #444 !important;
+}
+
+.alert-row.resolved .pulse-dot {
+  display: none;
+}
+
+/* Legacy support aliases */
 .tier-urgent {
   background-color: rgba(255, 43, 59, 0.05);
 }
-.tier-urgent:hover {
-  background-color: rgba(255, 43, 59, 0.08);
+.tier-med {
+  background-color: rgba(255, 184, 0, 0.03);
 }
-.tier-urgent.selected {
-  background-color: rgba(255, 43, 59, 0.15);
-  border-left: 2px solid var(--color-urgent);
+.tier-low { 
+  background-color: rgba(0, 133, 255, 0.05);
 }
 
 /* Flex Utilities */
+.cell-tier {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 12px;
+  gap: 10px;
+}
 .flex-center {
   display: flex;
   justify-content: center;
   align-items: center;
 }
+
 .flex-center-col {
   display: flex;
   flex-direction: column;
@@ -76,26 +128,56 @@
 
 /* Tier Badge */
 .badge {
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  min-width: 100px;
+  text-align: center;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1px;
   border: 1px solid transparent;
 }
+.badge-life_threatening {
+  color: #fff;
+  background-color: var(--color-life-threatening);
+  border-color: rgba(255,0,0,0.5);
+  text-shadow: 0 0 5px rgba(0,0,0,0.5);
+}
+.badge-emergency {
+  color: var(--color-emergency);
+  background-color: var(--color-emergency-dim);
+  border-color: rgba(255,43,59,0.3);
+}
+.badge-requires_review {
+  color: var(--color-requires-review);
+  background-color: var(--color-requires-review-dim);
+  border-color: rgba(255,184,0,0.3);
+}
+.badge-minor_emergency {
+  color: var(--color-minor-emergency);
+  background-color: var(--color-minor-emergency-dim);
+  border-color: rgba(0,133,255,0.3);
+}
+.badge-non_emergency {
+  color: var(--color-non-emergency);
+  background-color: var(--color-non-emergency-dim);
+  border-color: rgba(16,185,129,0.3);
+}
+
+/* Legacy Badge Aliases */
 .badge-urgent {
-  color: var(--color-urgent);
-  background-color: var(--color-urgent-dim);
+  color: var(--color-emergency);
+  background-color: var(--color-emergency-dim);
   border-color: rgba(255,43,59,0.3);
 }
 .badge-med {
-  color: var(--color-med);
-  background-color: var(--color-med-dim);
+  color: var(--color-requires-review);
+  background-color: var(--color-requires-review-dim);
   border-color: rgba(255,184,0,0.3);
 }
 .badge-low {
-  color: var(--color-low);
-  background-color: var(--color-low-dim);
+  color: var(--color-minor-emergency);
+  background-color: var(--color-minor-emergency-dim);
   border-color: rgba(0,133,255,0.3);
 }
 
@@ -104,10 +186,7 @@
   height: 6px;
   background-color: var(--color-urgent);
   border-radius: 50%;
-  position: absolute;
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+  flex-shrink: 0;
   animation: pulse 1.5s infinite;
 }
 
@@ -122,6 +201,13 @@
   font-size: 10px;
   color: var(--text-secondary);
   text-align: center;
+}
+
+.duration-text {
+  font-size: 9px;
+  color: var(--color-med);
+  opacity: 0.8;
+  margin-top: -2px;
 }
 
 /* Pills */
@@ -164,10 +250,11 @@
 .pitch-value {
   font-size: 10px;
   color: var(--text-secondary);
-  align-self: flex-start;
+  text-align: center;
 }
 .pitch-bar-container {
   width: 100%;
+  max-width: 100px;
   height: 4px;
   background-color: #231d2b;
   border-radius: 2px;
@@ -177,6 +264,13 @@
   height: 100%;
   border-radius: 2px;
 }
+.fill-life_threatening { background-color: var(--color-life-threatening); }
+.fill-emergency { background-color: var(--color-emergency); }
+.fill-requires_review { background-color: var(--color-requires-review); }
+.fill-minor_emergency { background-color: var(--color-minor-emergency); }
+.fill-non_emergency { background-color: var(--color-non-emergency); }
+
+/* Legacy fill aliases */
 .fill-urgent { background-color: var(--color-urgent); }
 .fill-med { background-color: var(--color-med); }
 .fill-low { background-color: var(--color-low); }
@@ -196,14 +290,23 @@
 }
 .btn-action {
   background-color: transparent;
-  padding: 6px 16px;
+  padding: 8px 12px;
   border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 1px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
   cursor: pointer;
   transition: all 0.2s;
-  min-width: 90px;
+  width: 110px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-action:disabled {
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.5;
 }
 .state-new {
   color: var(--color-med);

@@ -9,14 +9,31 @@
   --text-primary: #e6e6e6;
   --text-secondary: #908a99;
   
-  /* Status Colors */
-  --color-urgent: #ff2b3b;
-  --color-urgent-dim: rgba(255, 43, 59, 0.15);
-  --color-med: #ffb800;
-  --color-med-dim: rgba(255, 184, 0, 0.15);
-  --color-low: #0085ff;
-  --color-low-dim: rgba(0, 133, 255, 0.15);
+  /* Status Colors & Tier Mappings */
+  --color-life-threatening: #ff0000;
+  --color-life-threatening-dim: rgba(255, 0, 0, 0.15);
+  
+  --color-emergency: #ff2b3b;
+  --color-emergency-dim: rgba(255, 43, 59, 0.15);
+  
+  --color-requires-review: #ffb800;
+  --color-requires-review-dim: rgba(255, 184, 0, 0.15);
+  
+  --color-minor-emergency: #0085ff;
+  --color-minor-emergency-dim: rgba(0, 133, 255, 0.15);
+  
+  --color-non-emergency: #10b981;
+  --color-non-emergency-dim: rgba(16, 185, 129, 0.15);
+
   --color-active: #bda2fc;
+
+  /* Legacy tier mappings for backwards compatibility during transition */
+  --color-urgent: var(--color-emergency);
+  --color-urgent-dim: var(--color-emergency-dim);
+  --color-med: var(--color-requires-review);
+  --color-med-dim: var(--color-requires-review-dim);
+  --color-low: var(--color-minor-emergency);
+  --color-low-dim: var(--color-minor-emergency-dim);
 
   /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;

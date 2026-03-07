@@ -1,16 +1,25 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, CheckSquare, Square, Mic, Volume2, Play, Pause, HeartPulse, ShieldAlert, Phone, Building2, BellRing, MapPin } from 'lucide-react';
+import { useDispatch, useSelector } from 'react-redux';
+import { 
+  X, CheckSquare, Square, Mic, Volume2, Play, Pause, HeartPulse, 
+  ShieldAlert, Phone, Building2, BellRing, MapPin, Truck, 
+  CheckCircle2, UserCheck, PlusCircle, AlertTriangle, MessageSquare, Info,
+  Users, Car, ShieldCheck
+} from 'lucide-react';
+import { updateCaseBackend } from '../../store/alertsSlice';
 import './AlertDetail.css';
 
 export default function AlertDetail({ alert, onClose }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
   const audioRef = useRef(null);
 
   // Reset audio state when alert changes
   useEffect(() => {
     setIsPlaying(false);
     setProgress(0);
+    setDuration(alert?.audio_duration_seconds || 0);
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -19,7 +28,6 @@ export default function AlertDetail({ alert, onClose }) {
 
   if (!alert) return null;
 
-  const isUrgent = alert.tier === 'urgent';
   const headerClass = `detail-header tier-${alert.tier}`;
 
   const togglePlay = () => {
@@ -33,10 +41,15 @@ export default function AlertDetail({ alert, onClose }) {
   };
 
   const handleTimeUpdate = () => {
-    if (audioRef.current) {
-      const current = audioRef.current.currentTime;
-      const duration = audioRef.current.duration;
-      setProgress((current / duration) * 100 || 0);
+    if (audioRef.current && isFinite(audioRef.current.duration) && audioRef.current.duration > 0) {
+      const p = (audioRef.current.currentTime / audioRef.current.duration) * 100;
+      setProgress(p);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current && isFinite(audioRef.current.duration)) {
+      setDuration(audioRef.current.duration);
     }
   };
 
@@ -45,27 +58,31 @@ export default function AlertDetail({ alert, onClose }) {
     setProgress(0);
   };
 
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+
   return (
     <div className="alert-detail h-full flex flex-col">
       <div className={headerClass}>
-        <div className="detail-header-content">
-          <span className="alert-id mono">ALERT #{alert.id}</span>
-          <h2 className="alert-title">{alert.tier.toUpperCase()} ALERT</h2>
+        <div className="detail-header-left">
+          <span className={`detail-badge detail-badge-${alert.tier}`}>
+            {(alert.tier || 'new').replace('_', ' ').toUpperCase()}
+          </span>
+          <h1 className="alert-id mono">CASE #{alert.id}</h1>
         </div>
-        <button className="btn-close" onClick={onClose}>
+        <button className="btn-close cursor-pointer" onClick={onClose}>
           <X size={20} />
         </button>
       </div>
 
       <div className="detail-content flex-1 overflow-y-auto">
-        {/* Audio Player Section (Now unconditional) */}
+        {/* Audio Player Section */}
         <section className="detail-section p-4 bg-black/40 rounded-xl border border-[var(--panel-border)] mb-4">
           <h3 className="section-title mono !border-none !pb-0 !mb-4">AUDIO PLAYBACK</h3>
           
           <div className="flex items-center gap-4">
             <button 
               onClick={togglePlay}
-              className="w-12 h-12 rounded-full bg-[var(--color-active)] flex items-center justify-center text-black hover:bg-white transition-colors flex-shrink-0"
+              className="w-12 h-12 rounded-full bg-[var(--color-active)] flex items-center justify-center text-black hover:bg-white transition-colors flex-shrink-0 cursor-pointer"
             >
               {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
             </button>
@@ -79,104 +96,104 @@ export default function AlertDetail({ alert, onClose }) {
               </div>
               <div className="flex justify-between mt-2 text-xs text-[var(--text-secondary)] mono">
                 <span>{isPlaying ? 'PLAYING...' : 'READY'}</span>
-                <span>{alert.timeAgo}s REC</span>
+                <span>
+                  {isFinite(duration) && duration > 0 ? `${Math.round(duration)}s` : 
+                   (isFinite(alert.audio_duration_seconds) && alert.audio_duration_seconds > 0 ? `${Math.round(alert.audio_duration_seconds)}s` : 'Unknown')} REC
+                </span>
               </div>
             </div>
           </div>
           <audio 
             ref={audioRef}
-            src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+            src={`${backendUrl}/cases/audio/${alert.id}`}
             onTimeUpdate={handleTimeUpdate}
+            onLoadedMetadata={handleLoadedMetadata}
             onEnded={handleEnded}
             className="hidden"
           />
         </section>
 
-        {/* Signal Intelligence Section */}
-        <section className="detail-section">
-          <h3 className="section-title mono">SIGNAL INTELLIGENCE</h3>
-          
-          <div className="info-row">
-            <span className="info-label">Trigger Source</span>
-            <span className="info-value highlight-red">
-              {alert.source === 'audio' ? <Mic size={14} className="inline-icon" /> : ''} 
-              {alert.metadata?.mlSource || 'Hardware Button'}
-            </span>
-          </div>
-          
-          <div className="info-row" style={{ marginTop: '12px' }}>
-            <span className="info-label">Keyword Detected</span>
-            <span className="info-value highlight-red" style={{ fontSize: '18px' }}>
-              {alert.keywords ? `"${alert.keywords.join(', ')}"` : 'None'}
-            </span>
-          </div>
+        {/* AI Triage & Summary Section */}
+        <section className="detail-section mb-6">
+          <h3 className="section-title mono flex items-center justify-between">
+            <span>AI TRIAGE & SUMMARY</span>
+            <span className="text-[10px] bg-[#10b981]/20 px-2 py-0.5 rounded text-[#10b981] border border-[#10b981]/50">AI Generated</span>
+          </h3>
 
-          <div className="pitch-score-container">
-            <div className="pitch-score-header">
-              <span className="info-label">Audio Pitch Score</span>
-              <div className="pitch-bars flex-center">
-                {[...Array(15)].map((_, i) => (
-                  <div 
-                    key={i} 
-                    className={`audio-bar ${isPlaying ? 'animate-pulse' : ''}`} 
-                    style={{ 
-                      height: `${Math.max(10, Math.random() * (alert.pitch || 50))}px`,
-                      backgroundColor: isUrgent ? 'var(--color-urgent)' : 'var(--color-med)'
-                    }} 
-                  />
+          {/* Transcript Snippet */}
+          {alert.transcript && (
+            <div className="mb-4 p-3 bg-black/20 rounded border-l-2 border-[var(--color-med)] italic text-sm text-[#ddd]">
+              "{alert.transcript}"
+            </div>
+          )}
+
+          {/* SBAR Card */}
+          {alert.sbar && (
+            <div className="sbar-container grid gap-3 mb-6">
+              <div className="sbar-item">
+                <span className="sbar-label text-blue-400">SITUATION</span>
+                <p className="sbar-text">{alert.sbar.situation}</p>
+              </div>
+              <div className="sbar-item">
+                <span className="sbar-label text-purple-400">BACKGROUND</span>
+                <p className="sbar-text">{alert.sbar.background}</p>
+              </div>
+              <div className="sbar-item">
+                <span className="sbar-label text-amber-400">ASSESSMENT</span>
+                <p className="sbar-text">{alert.sbar.assessment}</p>
+              </div>
+              {/* User requested to ignore "recommendation" field from SBAR json */}
+            </div>
+          )}
+
+          {/* Triage Flags */}
+          {alert.triage_flags && alert.triage_flags.length > 0 && (
+            <div className="triage-flags mb-6">
+              <h4 className="text-[10px] text-[var(--text-secondary)] font-mono mb-2 uppercase tracking-widest">Triage Flags</h4>
+              <div className="flex flex-wrap gap-2">
+                {alert.triage_flags.map((flag, idx) => (
+                  <span key={idx} className="flag-pill">
+                    {flag.replace(/_/g, ' ').toUpperCase()}
+                  </span>
                 ))}
-                <span className="mono highlight-red" style={{ marginLeft: '12px' }}>{alert.pitch || 0}%</span>
               </div>
             </div>
-            <p className="helper-text">{alert.metadata?.pitchScoreDetail || 'Pitch score based on volume and frequency.'}</p>
+          )}
+        </section>
+
+        {/* Case Metadata Section - Restored and combined */}
+        <section className="detail-section mb-6">
+          <h3 className="section-title mono">CASE METADATA</h3>
+          <div className="bg-[#000]/20 p-3 rounded border border-white/5 space-y-3">
+             <div className="flex justify-between items-center text-xs">
+               <span className="text-[var(--text-secondary)] font-mono uppercase tracking-tighter">Location</span>
+               <span className="text-white font-medium text-right max-w-[200px]">{alert.location || 'Unknown'}</span>
+             </div>
+             {alert.button_location && (
+               <div className="flex justify-between items-center text-xs">
+                 <span className="text-[var(--text-secondary)] font-mono uppercase tracking-tighter">PAB Placement</span>
+                 <span className="text-white font-medium text-right">{alert.button_location.replace('_', ' ').toUpperCase()}</span>
+               </div>
+             )}
+             <div className="flex justify-between items-center text-xs">
+               <span className="text-[var(--text-secondary)] font-mono uppercase tracking-tighter">Languages Detect</span>
+               <div className="flex gap-1 justify-end flex-wrap">
+                 {alert.languages?.map((lang, i) => (
+                    <span key={i} className="px-1.5 py-0.5 bg-white/10 rounded text-[10px]">{lang}</span>
+                 )) || '-'}
+               </div>
+             </div>
+             <div className="flex justify-between items-center text-xs">
+               <span className="text-[var(--text-secondary)] font-mono uppercase tracking-tighter">Trigger Source</span>
+               <span className="text-red-400 font-mono flex items-center gap-1">
+                 {alert.source === 'audio' ? <Mic size={12} /> : <Info size={12} />} 
+                 {alert.source === 'audio' ? 'Voice/Audio' : 'PAB Button'}
+               </span>
+             </div>
           </div>
         </section>
 
-        {/* Language Section */}
-        <section className="detail-section">
-          <h3 className="section-title mono">LANGUAGE / DIALECT DETECTED</h3>
-          <div className="pill pill-lang large-pill">
-            {alert.metadata?.dialectDetected || alert.languages?.[0] || 'Unknown'}
-          </div>
-          <p className="helper-text" style={{ marginTop: '12px' }}>
-            Multi-dialect NLP model covers: English, Mandarin, Hokkien, Cantonese, Malay, Tamil, Teochew, Hakka.<br/>
-            Dialect detection improves keyword recall for elderly who may not use standard English or Mandarin in distress.
-          </p>
-        </section>
-
-        {/* False Positive Section */}
-        <section className="detail-section">
-          <h3 className="section-title mono">FALSE POSITIVE ANALYSIS</h3>
-          
-          <div className="checklist">
-            {['extraClicks', 'backgroundNoise', 'silentAudio'].map(key => {
-              const item = alert.metadata?.falsePositiveAnalysis?.[key];
-              if (!item) return null;
-              
-              const passed = item.passed;
-              const title = key === 'extraClicks' ? 'Extra button clicks' 
-                          : key === 'backgroundNoise' ? 'Background noise only'
-                          : 'Silent Audio (false neg)';
-              
-              return (
-                <div key={key} className="check-item">
-                  <div className="check-icon">
-                    {passed ? <CheckSquare size={18} color="#10b981" /> : (key === 'silentAudio' && !passed ? <span className="text-[#ffb800] text-lg leading-none mt-[-4px]">⚠️</span> : <Square size={18} color="#666" />)}
-                  </div>
-                  <div className="check-content">
-                    <div className={passed ? "check-title check-passed" : (key === 'silentAudio' && !passed ? "check-title text-[#ffb800]" : "check-title")}>{title}</div>
-                    <div className="check-desc">{item.desc || 'Passed filter'}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <p className="helper-text" style={{ marginTop: '16px' }}>
-            Button sensor uses 300ms debounce to suppress accidental presses. Audio sensor filters ambient noise below 45dB baseline.
-          </p>
-        </section>
-
-        {/* Beneficiary Profile Section (NEW PHASE 5) */}
+        {/* Beneficiary Profile Section */}
         {alert.beneficiary && (
           <section className="detail-section mb-4">
             <h3 className="section-title mono flex items-center justify-between">
@@ -190,234 +207,207 @@ export default function AlertDetail({ alert, onClose }) {
                   <div className="font-bold text-lg">{alert.beneficiary.full_name}</div>
                   <div className="text-xs text-[var(--text-secondary)] font-mono">NRIC: {alert.beneficiary.nric} • Age {alert.beneficiary.age}</div>
                 </div>
-                {alert.beneficiary.DNR_status === 'ACTIVE' && (
+                {alert.beneficiary.dnr_status === true && (
                   <div className="bg-red-900/30 text-[var(--color-urgent)] border border-[var(--color-urgent)] px-2 py-1 rounded text-xs font-bold animate-pulse">
                     DNR ACTIVE
                   </div>
                 )}
               </div>
 
-              <div className="space-y-2 mt-4">
-                <div className="flex justify-between text-xs border-b border-[#222] pb-1">
-                  <span className="text-[var(--text-secondary)] font-mono">Primary Language</span>
+              <div className="space-y-2 mt-4 text-xs">
+                <div className="flex justify-between border-b border-[#222] pb-1">
+                  <span className="text-[var(--text-secondary)] font-mono uppercase">Primary Language</span>
                   <span>{alert.beneficiary.primary_language}</span>
                 </div>
-                <div className="flex justify-between text-xs border-b border-[#222] pb-1">
-                  <span className="text-[var(--text-secondary)] font-mono">Phone</span>
+                {alert.beneficiary.secondary_language && (
+                  <div className="flex justify-between border-b border-[#222] pb-1">
+                    <span className="text-[var(--text-secondary)] font-mono uppercase">Secondary Language</span>
+                    <span>{alert.beneficiary.secondary_language}</span>
+                  </div>
+                )}
+                <div className="flex justify-between border-b border-[#222] pb-1">
+                  <span className="text-[var(--text-secondary)] font-mono uppercase">Phone</span>
                   <span className="text-[var(--color-med)]">{alert.beneficiary.phone_number}</span>
                 </div>
-                <div className="flex justify-between text-xs border-b border-[#222] pb-1">
-                  <span className="text-[var(--text-secondary)] font-mono">Emergency Contact</span>
+                <div className="flex justify-between border-b border-[#222] pb-1">
+                  <span className="text-[var(--text-secondary)] font-mono uppercase">Emergency Contact</span>
                   <span className="text-[var(--color-med)]">{alert.beneficiary.emergency_contact_name} ({alert.beneficiary.emergency_contact})</span>
                 </div>
-                <div className="flex justify-between text-xs border-b border-[#222] pb-1">
-                  <span className="text-[var(--text-secondary)] font-mono">Primary Hospital</span>
-                  <span>{alert.beneficiary.primary_hospital} (Ward {alert.beneficiary.insurance_ward_class})</span>
+                <div className="flex justify-between border-b border-[#222] pb-1">
+                  <span className="text-[var(--text-secondary)] font-mono uppercase">Hospital</span>
+                  <span>{alert.beneficiary.primary_hospital} ({alert.beneficiary.insurance_ward_class})</span>
                 </div>
+                {alert.beneficiary.consent_private_ambulance && (
+                  <div className="flex justify-between border-b border-[#222] pb-1">
+                    <span className="text-[var(--text-secondary)] font-mono uppercase">Private Ambulance Consent</span>
+                    <span className="text-green-400 font-bold">YES</span>
+                  </div>
+                )}
               </div>
 
-              <div className="mt-4 p-2 bg-[#1a1a1a] rounded border border-[#222]">
-                <div className="text-[10px] text-[var(--text-secondary)] font-mono mb-1 uppercase tracking-wider flex items-center gap-1">
-                  <HeartPulse size={12} /> Medical Summary
+              {alert.beneficiary.patient_medical_summary && (
+                <div className="mt-4 p-2 bg-[#1a1a1a] rounded border border-[#222]">
+                  <div className="text-[10px] text-[var(--text-secondary)] font-mono mb-1 uppercase tracking-wider flex items-center gap-1">
+                    <HeartPulse size={12} /> Medical Summary
+                  </div>
+                  <p className="text-sm leading-relaxed text-[#eee]">
+                    {alert.beneficiary.patient_medical_summary}
+                  </p>
                 </div>
-                <p className="text-sm leading-relaxed text-[#eee]">
-                  {alert.beneficiary.patient_medical_summary}
-                </p>
-              </div>
+              )}
             </div>
           </section>
         )}
 
-        {/* AI Action Outreach Orchestrator (NEW PHASE 5) */}
-        <section className="detail-section mb-4">
-          <h3 className="section-title mono flex items-center justify-between">
-            <span>AI ORCHESTRATOR</span>
-            <span className="text-[10px] bg-[#10b981]/20 px-2 py-0.5 rounded text-[#10b981] border border-[#10b981]/50">Policy Applied</span>
-          </h3>
-          
-          <div className="text-xs text-[var(--text-secondary)] mb-3">
-             Recommended actions dynamically generated for human confirmation based on beneficiary matrix:
-          </div>
-          
-          <div className="grid gap-2">
-            <div className="p-3 bg-black/40 border border-[#333] rounded hover:border-[var(--color-med)] cursor-pointer transition-colors flex items-center gap-3">
-               <ShieldAlert size={18} className="text-[#a855f7]" />
-               <div className="flex flex-col flex-1">
-                 <span className="text-sm font-bold">Insurance Agent Override</span>
-                 <span className="text-[10px] text-[var(--text-secondary)]">Ping registered agent.</span>
-               </div>
-            </div>
-            
-            <div className="p-3 bg-black/40 border border-[var(--color-urgent)]/50 rounded hover:border-[var(--color-urgent)] cursor-pointer transition-colors flex items-center gap-3">
-               <Phone size={18} className="text-[var(--color-urgent)]" />
-               <div className="flex flex-col flex-1">
-                 <span className="text-sm font-bold">Family / Emergency Contact</span>
-                 <span className="text-[10px] text-[var(--text-secondary)]">Auto-dial {alert.beneficiary?.emergency_contact_name || 'NOK'}</span>
-               </div>
-            </div>
-
-            <div className="p-3 bg-black/40 border border-[#333] rounded hover:border-[var(--color-med)] cursor-pointer transition-colors flex items-center gap-3">
-               <MapPin size={18} className="text-[#3b82f6]" />
-               <div className="flex flex-col flex-1">
-                 <span className="text-sm font-bold flex gap-2">SecureSG Volunteers <span className="bg-[#3b82f6]/20 px-1 rounded text-[#3b82f6] text-[9px]">3 Nearby</span></span>
-                 <span className="text-[10px] text-[var(--text-secondary)]">Filtered by: Location • First-Aid Skillset • {alert.beneficiary?.primary_language || 'English'}</span>
-               </div>
-            </div>
-
-            <div className="p-3 bg-black/40 border border-[#333] rounded hover:border-[var(--color-med)] cursor-pointer transition-colors flex items-center gap-3">
-               <Building2 size={18} className="text-[#10b981]" />
-               <div className="flex flex-col flex-1">
-                 <span className="text-sm font-bold">Ambulance Services</span>
-                 <span className="text-[10px] text-[var(--text-secondary)]">Route: {alert.beneficiary?.primary_hospital || 'Public'} • Capacity OK • Ward {alert.beneficiary?.insurance_ward_class || 'C'}</span>
-               </div>
-            </div>
-
-            <div className="p-3 bg-black/40 border border-[#333] rounded hover:border-[var(--color-med)] cursor-pointer transition-colors flex items-center gap-3">
-               <BellRing size={18} className="text-[#f59e0b]" />
-               <div className="flex flex-col flex-1">
-                 <span className="text-sm font-bold">LifeSG & Lift Lobby Notification</span>
-                 <span className="text-[10px] text-[var(--text-secondary)]">Broadcast SOS to immediate block lobby screens.</span>
-               </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Location & Time */}
-        <section className="detail-section">
-          <h3 className="section-title mono">LOCATION & TIME</h3>
-          <div className="w-full text-xs text-[var(--text-secondary)]">
-            <div className="flex justify-between py-3 border-b border-[var(--panel-border)]">
-              <span>Address</span>
-              <span className="text-[var(--text-primary)] font-mono">{alert.location}</span>
-            </div>
-            <div className="flex justify-between py-3 border-b border-[var(--panel-border)]">
-              <span>Coordinates</span>
-              <span className="text-[var(--text-primary)] font-mono">{alert.coordinates || 'Unknown'}</span>
-            </div>
-            <div className="flex justify-between py-3 border-b border-[var(--panel-border)]">
-              <span>Alert Time</span>
-              <span className="text-[var(--text-primary)] font-mono">
-                {alert.timestamp ? new Date(alert.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase() : 'Unknown'}
-              </span>
-            </div>
-            <div className="flex justify-between py-3 border-b border-[var(--panel-border)]">
-              <span>Date</span>
-              <span className="text-[var(--text-primary)] font-mono">
-                {alert.timestamp ? new Date(alert.timestamp).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Unknown'}
-              </span>
-            </div>
-          </div>
-        </section>
-
-        {/* Responder Action Section */}
-        <section className="detail-section">
-          <h3 className="section-title mono">RESPONDER ACTION</h3>
-          <div className="flex flex-col gap-2">
-            <span className="text-[var(--color-med)] font-mono text-xs font-bold flex items-center gap-2">
-              ⏳ Awaiting agent verification.
-            </span>
-            <span className="text-[#ffb800] text-xs font-mono font-bold leading-relaxed">
-              {isUrgent ? 'Auto-deploy protocol active - Dispatch immediately.' : 'No auto-deploy - silent alert requires manual callback.'}
-            </span>
-            <span className="text-[#ffb800] text-xs font-mono font-bold">
-              Recommend: call resident's phone or next-of-kin.
-            </span>
-          </div>
-        </section>
-
-        {/* Agent Actions Container */}
+        {/* Agent Actions */}
         <section className="detail-section mb-12">
-           <h3 className="section-title mono">AGENT ACTIONS</h3>
-           
+           <h3 className="section-title mono">CASE STATUS & ACTIONS</h3>
            <ActionController alert={alert} />
+        </section>
 
+        {/* Metadata section (formerly LOCATION & TIME but narrowed down to system logs) */}
+        <section className="detail-section">
+          <h3 className="section-title mono">SYSTEM LOGS</h3>
+          <div className="w-full text-xs text-[var(--text-secondary)]">
+            <div className="flex justify-between py-2 border-b border-[var(--panel-border)]">
+              <span>Opened At</span>
+              <span className="text-[var(--text-primary)] font-mono">
+                {alert.opened_at ? new Date(alert.opened_at).toLocaleString() : 'Unknown'}
+              </span>
+            </div>
+            {alert.closed_at && (
+              <div className="flex justify-between py-2 border-b border-[var(--panel-border)]">
+                <span>Closed At</span>
+                <span className="text-[var(--text-primary)] font-mono">
+                  {new Date(alert.closed_at).toLocaleString()}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between py-2 border-b border-[var(--panel-border)]">
+              <span>Urgency Score</span>
+              <span className={`font-mono text-[var(--color-${alert.tier})] font-bold`}>{alert.queue_score}%</span>
+            </div>
+          </div>
         </section>
       </div>
     </div>
   );
 }
 
-// Sub-component for Action Controller to keep it clean
-import { useDispatch, useSelector } from 'react-redux';
-import { advanceAlertState } from '../../store/alertsSlice';
-import { Truck, CheckCircle2, UserCheck, PlusCircle } from 'lucide-react';
-
 function ActionController({ alert }) {
   const dispatch = useDispatch();
   const currentUser = useSelector((state) => state.alerts.currentUser);
+  const [selectedActions, setSelectedActions] = useState([]);
   
-  const steps = [
-    { key: 'new', label: 'New', icon: PlusCircle, activeColor: 'var(--color-med)' },
-    { key: 'claimed', label: 'Claimed', icon: UserCheck, activeColor: '#a855f7' },
-    { key: 'dispatched', label: 'Dispatched', icon: Truck, activeColor: 'var(--color-urgent)' },
-    { key: 'resolved', label: 'Resolved', icon: CheckCircle2, activeColor: '#10b981' }
+  // Initialize selected actions from recommendations
+  useEffect(() => {
+    if (alert.recommended_actions) {
+      setSelectedActions(alert.recommended_actions);
+    }
+  }, [alert.id, alert.recommended_actions]);
+
+  const allPossibleActions = [
+    { id: 'call_patient_now', label: 'Call Patient', icon: Phone },
+    { id: 'inform_emergency_contact', label: 'Contact NOK', icon: UserCheck },
+    { id: 'call_sgsecure_volunteers', label: 'SGSecure Volunteers', icon: Users },
+    { id: 'call_995', label: 'Call 995', icon: Truck },
+    { id: 'call_private_ambulance_1777', label: 'Call 1777 (Pv Ambl)', icon: ShieldCheck },
+    { id: 'call_ed_by_private_transport', label: 'Pv Transport (ED)', icon: Car },
+    { id: 'call_999', label: 'Call 999 (Police)', icon: ShieldAlert },
+    { id: 'notify_lift_lobby', label: 'Notify Lift Lobby', icon: BellRing }
   ];
 
-  const currentIndex = steps.findIndex(s => s.key === (alert.actionState || 'new'));
-  
-  const handleAdvance = () => {
-    dispatch(advanceAlertState({ id: alert.id, agent: currentUser }));
+  const handleToggleAction = (id) => {
+    setSelectedActions(prev => 
+      prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]
+    );
   };
 
-  const getButtonProps = () => {
-    switch(alert.actionState || 'new') {
-      case 'new': return { text: 'CLAIM ALERT', classes: 'border-2 border-[var(--color-med)] text-[var(--color-med)] hover:bg-[var(--color-med-dim)] hover:scale-[1.02] shadow-[0_0_15px_rgba(255,184,0,0.15)] bg-black/50' };
-      case 'claimed': return { text: 'DISPATCH UNIT', classes: 'bg-[var(--color-urgent)] text-white hover:bg-red-600 border border-transparent hover:scale-[1.02] shadow-[0_0_15px_rgba(255,51,102,0.3)]' };
-      case 'dispatched': return { text: 'RESOLVE CASE', classes: 'bg-[#10b981] text-white hover:bg-green-600 border border-transparent hover:scale-[1.02] shadow-[0_0_15px_rgba(16,185,129,0.3)]' };
-      case 'resolved': return { text: 'CASE CLOSED', classes: 'bg-[var(--panel-border)] text-[var(--text-secondary)] opacity-50 cursor-not-allowed border border-transparent', disabled: true };
-      default: return { text: 'CLAIM ALERT', classes: 'border-2 border-[var(--color-med)] text-[var(--color-med)]' };
-    }
+  const handleExecute = async () => {
+    // If actions are selected, we consider it "dispatched" (actions taken)
+    const nextStatus = selectedActions.length > 0 ? 'dispatched' : 'claimed';
+    
+    await dispatch(updateCaseBackend({ 
+      caseId: alert.id, 
+      updates: { 
+        status: nextStatus,
+        assigned_operator_id: currentUser?.operator_id
+      } 
+    }));
   };
 
-  const btn = getButtonProps();
+  const handleResolve = async () => {
+     await dispatch(updateCaseBackend({ 
+      caseId: alert.id, 
+      updates: { 
+        status: 'resolved'
+      } 
+    }));
+  };
+
+  const status = alert.status || alert.actionState || 'new';
 
   return (
-    <div className="flex flex-col gap-8 w-full">
-      <button 
-        onClick={handleAdvance}
-        disabled={btn.disabled}
-        className={`w-full py-4 px-6 rounded-lg font-mono font-bold tracking-widest text-sm transition-all duration-200 uppercase ${btn.classes}`}
-      >
-        {btn.text}
-      </button>
-
-      {/* Progress Tracker */}
-      <div className="relative flex items-center justify-between w-full max-w-[300px] mt-4">
-        {/* Connecting Lines */}
-        <div className="absolute top-4 left-0 w-full h-[1px] bg-[var(--panel-border)] -z-10" />
-        
-        {steps.map((step, idx) => {
-          const isCompleted = currentIndex >= idx;
-          const isCurrent = currentIndex === idx;
-          const Icon = step.icon;
-          
-          // Look for history logs that match the exact state (so if this is the "claimed" step, look for "claimed" log)
-          const historyEntry = alert.actionHistory?.find(h => h.state === step.key);
+    <div className="space-y-6">
+      <div className="grid gap-2">
+        <h4 className="text-[10px] text-[var(--text-secondary)] font-mono uppercase tracking-widest mb-1">Select Interventions</h4>
+        {allPossibleActions.map(action => {
+          const isRecommended = alert.recommended_actions?.includes(action.id);
+          const isSelected = selectedActions.includes(action.id);
+          const Icon = action.icon;
 
           return (
-            <div key={step.key} className="flex flex-col items-center gap-2 bg-[var(--panel-bg)] z-10 w-16 relative">
-              <div 
-                className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${isCompleted ? 'border-transparent' : 'border-[#333]'}`}
-                style={{ backgroundColor: isCompleted ? step.activeColor : 'var(--bg-color)' }}
-              >
-                <Icon size={14} color={isCompleted ? '#000' : '#666'} strokeWidth={isCurrent ? 3 : 2} />
+            <div 
+              key={action.id}
+              onClick={() => handleToggleAction(action.id)}
+              className={`p-3 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${
+                isSelected 
+                  ? 'bg-[var(--color-med)]/20 border-[var(--color-med)] text-white' 
+                  : 'bg-black/20 border-white/5 text-[var(--text-secondary)] hover:border-white/20'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Icon size={16} className={isSelected ? 'text-[var(--color-med)]' : ''} />
+                <span className="text-sm font-medium">{action.label}</span>
               </div>
-              <span className={`text-[9px] font-mono tracking-wider ${isCurrent ? 'text-white' : 'text-[#666]'}`}>
-                {step.label}
-              </span>
-              
-              {/* Agent History Tag (Shown if this step has been completed) */}
-              {historyEntry && (
-                <div className="absolute top-14 flex flex-col items-center mt-2 w-[120px]">
-                   <span className="text-[9px] text-[var(--color-med)] font-mono whitespace-nowrap">{historyEntry.agentName || historyEntry.agentId}</span>
-                   <span className="text-[8px] text-[var(--text-secondary)] font-mono whitespace-nowrap">
-                     {new Date(historyEntry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                   </span>
-                </div>
+              {isRecommended && !isSelected && (
+                <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded border border-red-500/30 flex items-center gap-1">
+                  <AlertTriangle size={8} /> REC
+                </span>
               )}
+              {isSelected && <CheckSquare size={16} className="text-[var(--color-med)]" />}
             </div>
           );
         })}
+      </div>
+
+      <div className="pt-6 space-y-3">
+        {status !== 'resolved' ? (
+          <>
+            <button 
+              onClick={handleExecute}
+              disabled={selectedActions.length === 0}
+              className={`w-full py-4 bg-white text-black font-bold mono tracking-widest rounded-xl transition-colors shadow-lg disabled:opacity-50 ${selectedActions.length > 0 ? 'hover:bg-[var(--color-active)] cursor-pointer' : 'cursor-default'}`}
+            >
+              {status === 'new' ? 'CLAIM & EXECUTE' : 'EXECUTE UPDATED PLAN'}
+            </button>
+            {status === 'dispatched' && (
+              <button 
+                onClick={handleResolve}
+                className="w-full py-2 bg-transparent border border-white/20 text-[var(--text-secondary)] hover:text-white hover:border-white transition-all text-xs mono rounded-lg cursor-pointer"
+              >
+                MARK AS RESOLVED / CLOSED
+              </button>
+            )}
+          </>
+        ) : (
+          <div className="p-4 bg-[#10b981]/10 border border-[#10b981]/30 rounded-xl text-center">
+            <div className="text-[#10b981] font-bold mono text-sm mb-1 uppercase tracking-widest flex items-center justify-center gap-2">
+              <CheckCircle2 size={16} /> CASE CLOSED
+            </div>
+            <div className="text-[10px] text-[var(--text-secondary)] mono">Case resolution protocol complete.</div>
+          </div>
+        )}
       </div>
     </div>
   );

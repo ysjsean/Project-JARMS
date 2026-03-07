@@ -12,6 +12,28 @@
   border-bottom: 1px solid var(--panel-border);
 }
 
+.detail-header.tier-life_threatening {
+  background-color: rgba(255, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(255, 0, 0, 0.3);
+}
+.detail-header.tier-emergency {
+  background-color: rgba(255, 43, 59, 0.05);
+  border-bottom: 1px solid rgba(255, 43, 59, 0.2);
+}
+.detail-header.tier-requires_review {
+  background-color: rgba(255, 184, 0, 0.03);
+  border-bottom: 1px solid rgba(255, 184, 0, 0.15);
+}
+.detail-header.tier-minor_emergency {
+  background-color: rgba(0, 133, 255, 0.03);
+  border-bottom: 1px solid rgba(0, 133, 255, 0.15);
+}
+.detail-header.tier-non_emergency {
+  background-color: rgba(16, 185, 129, 0.03);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+/* Legacy support */
 .detail-header.tier-urgent {
   background-color: rgba(255, 43, 59, 0.05);
   border-bottom: 1px solid rgba(255, 43, 59, 0.2);
@@ -160,4 +182,132 @@
 .check-desc {
   font-size: 11px;
   color: var(--text-secondary);
+}
+
+/* Detail Badges */
+.detail-badge {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.detail-badge-life_threatening { background-color: var(--color-life-threatening); color: white; }
+.detail-badge-emergency { background-color: var(--color-emergency); color: white; }
+.detail-badge-requires_review { background-color: var(--color-requires-review); color: black; }
+.detail-badge-minor_emergency { background-color: var(--color-minor-emergency); color: white; }
+.detail-badge-non_emergency { background-color: var(--color-non-emergency); color: white; }
+
+/* Stat Colors */
+.color-life_threatening { color: var(--color-life-threatening); }
+.color-emergency { color: var(--color-emergency); }
+.color-requires_review { color: var(--color-requires-review); }
+.color-minor_emergency { color: var(--color-minor-emergency); }
+.color-non_emergency { color: var(--color-non-emergency); }
+
+/* Progress Bars */
+.stat-progress-bg {
+  width: 100%;
+  height: 6px;
+  background-color: rgba(255,255,255,0.05);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 12px 0;
+}
+.stat-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease-out;
+}
+.fill-life_threatening { background-color: var(--color-life-threatening); box-shadow: 0 0 10px var(--color-life-threatening); }
+.fill-emergency { background-color: var(--color-emergency); }
+.fill-requires_review { background-color: var(--color-requires-review); }
+.fill-minor_emergency { background-color: var(--color-minor-emergency); }
+.fill-non_emergency { background-color: var(--color-non-emergency); }
+/* AI Triage Section Styling */
+.sbar-container {
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: rgba(0,0,0,0.2);
+}
+
+.sbar-item {
+  padding: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.sbar-item:last-child {
+  border-bottom: none;
+}
+
+.sbar-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  margin-bottom: 4px;
+}
+
+.sbar-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #eee;
+}
+
+.flag-pill {
+  padding: 4px 10px;
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* Action Controller Styling */
+.action-controller-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.action-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-checkbox-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.action-checkbox-item.selected {
+  background: rgba(255, 184, 0, 0.1);
+  border-color: var(--color-med);
+}
+
+.action-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #eee;
+}
+
+.action-recommended-badge {
+  margin-left: auto;
+  font-size: 9px;
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  text-transform: uppercase;
 }

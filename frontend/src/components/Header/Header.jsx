@@ -1,17 +1,27 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, LogOut } from 'lucide-react';
+import { useSelector, useDispatch } from 'react-redux';
 import { supabase } from '../../services/supabaseClient';
+import { logout } from '../../store/alertsSlice';
 import './Header.css';
 
 export default function Header() {
   const [time, setTime] = useState(new Date());
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const alerts = useSelector((state) => state.alerts.items);
+  const currentUser = useSelector((state) => state.alerts.currentUser);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const urgentCount = alerts.filter(a => 
+    (a.tier === 'life_threatening' || a.tier === 'emergency') && 
+    a.actionState !== 'resolved'
+  ).length;
 
   const timeString = time.toLocaleTimeString('en-US', { hour12: false });
   const dateString = time.toLocaleDateString('en-US', { 
@@ -22,6 +32,7 @@ export default function Header() {
   });
 
   const handleLogout = () => {
+    dispatch(logout());
     navigate('/login');
   };
 
@@ -37,15 +48,15 @@ export default function Header() {
         </div>
       </div>
 
-      <div className="header-center flex flex-col items-center">
-        <div className="global-status mb-1">
+      <div className="header-center flex flex-col items-center gap-2">
+        <div className="global-status">
           <span className="status-dot"></span>
-          <span className="mono">10 URGENT ACTIVE</span>
+          <span className="mono">{urgentCount} URGENT ACTIVE</span>
         </div>
         
         {/* Connection Status Indicator */}
-        <div className="flex items-center gap-2 text-[10px] font-mono tracking-widest mt-1 opacity-70">
-           <div className={`w-1.5 h-1.5 rounded-full ${supabase ? 'bg-[#10b981] animate-pulse' : 'bg-[#ffb800]'}`} />
+        <div className="flex items-center gap-2 text-[10px] font-mono tracking-widest opacity-70 mt-1">
+           <div className={`w-1.5 h-1.5 rounded-full ${supabase ? 'bg-[#10b981] animate-pulse' : 'bg-[#ffb800]'} `} />
            <span className={supabase ? 'text-[#10b981]' : 'text-[#ffb800]'}>
              {supabase ? 'SUPABASE REALTIME : CONNECTED' : 'LOCAL MOCK : OFFLINE'}
            </span>
@@ -54,7 +65,7 @@ export default function Header() {
 
       <div className="header-right">
         <div className="agent-info">
-          <span className="agent-name">Agent Priya</span>
+          <span className="agent-name">{currentUser?.username || 'Guest Agent'}</span>
           <div className="clock mono">
             {timeString} <span className="date">· {dateString}</span>
           </div>

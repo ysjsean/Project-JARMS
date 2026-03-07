@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import {
   fetchInitialAlerts,
   selectAlert,
@@ -16,20 +17,52 @@ export default function Dashboard() {
     items: alerts,
     selectedAlertId,
     status,
+    currentUser,
   } = useSelector((state) => state.alerts);
 
+  const navigate = useNavigate();
+
   useEffect(() => {
-    if (status === "idle") {
+    if (!currentUser) {
+      navigate('/login');
+    }
+  }, [currentUser, navigate]);
+
+  useEffect(() => {
+    if (status === "idle" && currentUser) {
       dispatch(fetchInitialAlerts());
     }
-  }, [status, dispatch]);
+  }, [status, dispatch, currentUser]);
 
-  // Aggregate stats based on current alerts
+  // Define tier priority order for sorting
+  const TIER_PRIORITY = {
+    life_threatening: 0,
+    emergency: 1,
+    requires_review: 2,
+    minor_emergency: 3,
+    non_emergency: 4,
+  };
+
+  // Sort alerts based on urgency classification and percentage
+  const sortedAlerts = [...alerts].sort((a, b) => {
+    const priorityA = TIER_PRIORITY[a.tier] ?? 99;
+    const priorityB = TIER_PRIORITY[b.tier] ?? 99;
+
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+
+    // Secondary sort: queue_score (descending)
+    return (b.queue_score || 0) - (a.queue_score || 0);
+  });
+
+  // Aggregate stats based on active (non-resolved) alerts
+  const activeAlerts = alerts.filter(a => a.actionState !== 'resolved');
   const stats = {
-    urgent: alerts.filter((a) => a.tier === "urgent").length,
-    med: alerts.filter((a) => a.tier === "med").length,
-    low: alerts.filter((a) => a.tier === "low").length,
-    total: alerts.length,
+    urgent: activeAlerts.filter((a) => a.tier === "life_threatening" || a.tier === "emergency").length,
+    med: activeAlerts.filter((a) => a.tier === "requires_review").length,
+    low: activeAlerts.filter((a) => a.tier === "minor_emergency" || a.tier === "non_emergency").length,
+    total: activeAlerts.length,
   };
 
   const selectedAlert = alerts.find((a) => a.id === selectedAlertId) || null;
@@ -53,7 +86,7 @@ export default function Dashboard() {
           className={`flex flex-col ${selectedAlertId ? "w-full lg:w-[calc(100%-400px)] lg:border-r border-[var(--panel-border)]" : "w-full"} overflow-hidden transition-all duration-300`}
         >
           <AlertList
-            alerts={alerts}
+            alerts={sortedAlerts}
             selectedAlertId={selectedAlertId}
             onSelectAlert={(id) => dispatch(selectAlert(id))}
           />
