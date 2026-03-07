@@ -16,11 +16,17 @@ export default function App() {
 
         .nav {
           position: sticky; top: 0; z-index: 100;
-          display: flex; align-items: center; justify-content: space-between;
-          height: 56px; padding: 0 28px;
           background: #ffffff;
           border-bottom: 1px solid #E5E7EB;
           font-family: 'DM Mono', monospace;
+        }
+
+        .nav-inner {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 0 28px;
+          height: 56px;
+          display: flex; align-items: center; justify-content: space-between;
         }
 
         .nav-brand {
@@ -41,9 +47,7 @@ export default function App() {
           letter-spacing: 0.1em; display: block; margin-top: 1px;
         }
 
-        .nav-links {
-          display: flex; gap: 4px;
-        }
+        .nav-links { display: flex; gap: 4px; }
 
         .nav-link {
           font-family: 'DM Mono', monospace;
@@ -54,13 +58,8 @@ export default function App() {
           transition: background 0.15s, color 0.15s;
         }
 
-        .nav-link:hover {
-          background: #F3F4F6; color: #111827;
-        }
-
-        .nav-link.active {
-          background: #111827; color: #ffffff;
-        }
+        .nav-link:hover { background: #F3F4F6; color: #111827; }
+        .nav-link.active { background: #111827; color: #ffffff; }
 
         .nav-status {
           display: flex; align-items: center; gap: 6px;
@@ -76,6 +75,14 @@ export default function App() {
           animation: pulse 1.5s infinite;
         }
 
+        /* Shared page container — both pages use this */
+        .page-container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 24px 28px;
+          width: 100%;
+        }
+
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
@@ -83,36 +90,38 @@ export default function App() {
       `}</style>
 
       <nav className="nav">
-        <div className="nav-brand">
-          <div className="nav-brand-icon">🛡</div>
-          <div>
-            GUARDIAN WATCH
-            <span className="nav-brand-sub">ELDERLY ALERT SYSTEM</span>
+        <div className="nav-inner">
+          <div className="nav-brand">
+            <div className="nav-brand-icon">🛡</div>
+            <div>
+              GUARDIAN WATCH
+              <span className="nav-brand-sub">ELDERLY ALERT SYSTEM</span>
+            </div>
           </div>
-        </div>
 
-        <div className="nav-links">
-          <NavLink
-            to="/"
-            end
-            className={({ isActive }) =>
-              isActive ? "nav-link active" : "nav-link"
-            }
-          >
-            DASHBOARD
-          </NavLink>
-          <NavLink
-            to="/alert"
-            className={({ isActive }) =>
-              isActive ? "nav-link active" : "nav-link"
-            }
-          >
-            ALERT
-          </NavLink>
-        </div>
+          <div className="nav-links">
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) =>
+                isActive ? "nav-link active" : "nav-link"
+              }
+            >
+              DASHBOARD
+            </NavLink>
+            <NavLink
+              to="/alert"
+              className={({ isActive }) =>
+                isActive ? "nav-link active" : "nav-link"
+              }
+            >
+              ALERT
+            </NavLink>
+          </div>
 
-        <div className="nav-status">
-          <div className="nav-status-dot" />7 URGENT ACTIVE
+          <div className="nav-status">
+            <div className="nav-status-dot" />7 URGENT ACTIVE
+          </div>
         </div>
       </nav>
 

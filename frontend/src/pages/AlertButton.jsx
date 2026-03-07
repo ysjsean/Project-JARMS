@@ -134,23 +134,12 @@ export default function AlertButton() {
   };
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "#F8FAFC",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: "'DM Mono', 'Courier New', monospace",
-        padding: 24,
-      }}
+    <div
+      className="page-container"
+      style={{ fontFamily: "'DM Mono', 'Courier New', monospace" }}
     >
-      <link
-        href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap"
-        rel="stylesheet"
-      />
-
-      <div style={{ width: "100%", maxWidth: 400 }}>
+      {/* Centered card */}
+      <div style={{ maxWidth: 400, margin: "0 auto" }}>
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 36 }}>
           <div
@@ -166,7 +155,7 @@ export default function AlertButton() {
               marginBottom: 14,
             }}
           >
-            GUARDIAN WATCH
+            PERSONAL ALERT
           </div>
           <h1
             style={{
@@ -177,7 +166,7 @@ export default function AlertButton() {
               letterSpacing: "-0.02em",
             }}
           >
-            Personal Alert
+            Send an Alert
           </h1>
           <p style={{ fontSize: 12, color: "#9CA3AF", margin: 0 }}>
             Press to begin recording. Press again to send.
@@ -378,6 +367,6 @@ export default function AlertButton() {
           100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
         }
       `}</style>
-    </main>
+    </div>
   );
 }

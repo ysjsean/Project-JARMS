@@ -1,3 +1,5 @@
+# backend/core/supabase.py
+
 from supabase import create_client, Client
 from core.settings import settings
 
