@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const STATUS = {
   IDLE: "idle",
@@ -8,88 +8,146 @@ const STATUS = {
   ERROR: "error",
 };
 
+const C = {
+  bg: "#16181D",
+  surface: "#1E2028",
+  border: "#2C2F3A",
+  borderSoft: "#252830",
+  textPrimary: "#E8EAF0",
+  textSecondary: "#8B90A0",
+  textMuted: "#545868",
+  accent: "#E55A5A",
+  amber: "#D4883A",
+  green: "#3EA876",
+  blue: "#4C8BF5",
+};
+
 const fmt = (s) =>
   `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-
-// Soft dark palette
-const C = {
-  bg: "#16181D", // page background
-  surface: "#1E2028", // card surface
-  border: "#2C2F3A", // subtle borders
-  borderSoft: "#252830", // very soft dividers
-  textPrimary: "#E8EAF0", // headings
-  textSecondary: "#8B90A0", // labels
-  textMuted: "#545868", // timestamps
-  accent: "#E55A5A", // red — softened from pure #DC2626
-  amber: "#D4883A", // amber
-  green: "#3EA876", // green
-};
 
 export default function AlertButton() {
   const [status, setStatus] = useState(STATUS.IDLE);
   const [seconds, setSeconds] = useState(0);
   const [log, setLog] = useState([]);
   const [audioURL, setAudioURL] = useState(null);
-  const [buttonId, setButtonId] = useState("BTN-1001");
+
+  const [beneficiaries, setBeneficiaries] = useState([]);
+  const [buttonId, setButtonId] = useState("");
+  const [selectedBeneficiary, setSelectedBeneficiary] = useState(null);
+
+  const [caseData, setCaseData] = useState(null);
+  const [triageResult, setTriageResult] = useState(null);
+  const [triageError, setTriageError] = useState(null);
+
+  const [nurseBotOpen, setNurseBotOpen] = useState(false);
+  const [nurseBotConnected, setNurseBotConnected] = useState(false);
+  const [nurseTranscript, setNurseTranscript] = useState("");
+  const [nurseEvents, setNurseEvents] = useState([]);
 
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const timerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const pollTimerRef = useRef(null);
+  const nurseWsRef = useRef(null);
 
-  const [beneficiaries, setBeneficiaries] = useState([]);
-  const [selectedBeneficiary, setSelectedBeneficiary] = useState(null);
+  const apiBase = import.meta.env.VITE_API_URL;
+
+  const selectedCaseId = caseData?.case_id;
+
+  const uploadDisabled =
+    status === STATUS.RECORDING || status === STATUS.SENDING;
+
+  const card = useMemo(
+    () => ({
+      background: C.surface,
+      border: `1px solid ${C.border}`,
+      borderRadius: 10,
+    }),
+    [],
+  );
+
+  const sectionLabel = useMemo(
+    () => ({
+      fontSize: 10,
+      fontWeight: 700,
+      color: C.textSecondary,
+      letterSpacing: "0.09em",
+    }),
+    [],
+  );
 
   useEffect(() => {
     async function loadBeneficiaries() {
       try {
-        const res = await fetch(
-          `${import.meta.env.VITE_API_URL}/beneficiaries`,
-        );
+        const res = await fetch(`${apiBase}/beneficiaries`);
         const data = await res.json();
-        setBeneficiaries(data.items || []);
-        if (data.items?.length) {
-          setButtonId(data.items[0].button_id);
-          setSelectedBeneficiary(data.items[0]);
+        const items = data.items || [];
+
+        setBeneficiaries(items);
+
+        if (items.length) {
+          setButtonId(items[0].button_id);
+          setSelectedBeneficiary(items[0]);
         }
       } catch (err) {
         console.error(err);
+        addLog("Failed to load beneficiaries", "error");
       }
     }
+
     loadBeneficiaries();
-  }, []);
+  }, [apiBase]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    return () => {
       clearInterval(timerRef.current);
+      clearInterval(pollTimerRef.current);
       mediaRecorderRef.current?.stream?.getTracks().forEach((t) => t.stop());
-      if (audioURL) URL.revokeObjectURL(audioURL);
-    },
-    [audioURL],
-  );
 
-  const addLog = (msg, type = "info") =>
+      if (audioURL) URL.revokeObjectURL(audioURL);
+
+      if (nurseWsRef.current) {
+        nurseWsRef.current.close();
+      }
+    };
+  }, [audioURL]);
+
+  function addLog(msg, type = "info") {
     setLog((prev) =>
       [{ msg, type, ts: new Date().toLocaleTimeString() }, ...prev].slice(
         0,
-        20,
+        25,
       ),
     );
+  }
+
+  function addNurseEvent(msg) {
+    setNurseEvents((prev) =>
+      [{ msg, ts: new Date().toLocaleTimeString() }, ...prev].slice(0, 20),
+    );
+  }
 
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
+
       chunksRef.current = [];
+
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
+
       recorder.onstop = handleRecordingStop;
       recorder.start(100);
+
       mediaRecorderRef.current = recorder;
       setStatus(STATUS.RECORDING);
       setSeconds(0);
+
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
+
       addLog("Recording started — microphone active", "record");
     } catch (err) {
       addLog(`Microphone access denied: ${err.message}`, "error");
@@ -105,21 +163,42 @@ export default function AlertButton() {
 
   async function handleRecordingStop() {
     const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+    if (audioURL) URL.revokeObjectURL(audioURL);
     setAudioURL(URL.createObjectURL(blob));
+
     addLog(
       `Recording captured — ${(blob.size / 1024).toFixed(1)} KB`,
       "success",
     );
+
     await submitAudioBlob(blob, `alert-${Date.now()}.webm`);
   }
 
   async function submitAudioBlob(blob, filename) {
     setStatus(STATUS.SENDING);
+    setCaseData(null);
+    setTriageResult(null);
+    setTriageError(null);
+    setNurseBotOpen(false);
+    setNurseBotConnected(false);
+    setNurseTranscript("");
+    setNurseEvents([]);
+
     addLog("Uploading audio + creating case…", "info");
+
     try {
-      const result = await sendAlertAudio(blob, buttonId, filename);
+      const result = await sendAlertAudio(blob, buttonId, filename, apiBase);
+
+      setCaseData(result.case || null);
+      setTriageResult(result.triage_pipeline_result || null);
+      setTriageError(result.triage_pipeline_error || null);
+
       setStatus(STATUS.SUCCESS);
       addLog(`Case created: ${result.case?.case_id ?? "ok"}`, "success");
+
+      if (result.case?.case_id) {
+        startPollingCase(result.case.case_id);
+      }
     } catch (err) {
       setStatus(STATUS.ERROR);
       addLog(`Send failed: ${err.message}`, "error");
@@ -129,13 +208,16 @@ export default function AlertButton() {
   async function handleFileUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+
     try {
       if (audioURL) URL.revokeObjectURL(audioURL);
       setAudioURL(URL.createObjectURL(file));
+
       addLog(
         `Audio file selected — ${file.name} (${(file.size / 1024).toFixed(1)} KB)`,
         "info",
       );
+
       await submitAudioBlob(file, file.name);
     } finally {
       e.target.value = "";
@@ -155,9 +237,107 @@ export default function AlertButton() {
   function handleReset() {
     setStatus(STATUS.IDLE);
     setSeconds(0);
+    setCaseData(null);
+    setTriageResult(null);
+    setTriageError(null);
+    setNurseBotOpen(false);
+    setNurseBotConnected(false);
+    setNurseTranscript("");
+    setNurseEvents([]);
+    clearInterval(timerRef.current);
+    clearInterval(pollTimerRef.current);
+
     if (audioURL) URL.revokeObjectURL(audioURL);
     setAudioURL(null);
     setLog([]);
+  }
+
+  async function fetchCase(caseId) {
+    const res = await fetch(`${apiBase}/cases/${caseId}`);
+    if (!res.ok) {
+      throw new Error("Failed to fetch case");
+    }
+    return res.json();
+  }
+
+  function startPollingCase(caseId) {
+    clearInterval(pollTimerRef.current);
+
+    pollTimerRef.current = setInterval(async () => {
+      try {
+        const updated = await fetchCase(caseId);
+        setCaseData(updated);
+
+        if (
+          updated.status === "queued" ||
+          updated.status === "needs_review" ||
+          updated.status === "error" ||
+          updated.status === "assigned" ||
+          updated.status === "closed"
+        ) {
+          addLog(`Case status updated: ${updated.status}`, "info");
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }, 4000);
+  }
+
+  function openNurseBot() {
+    if (!selectedCaseId) return;
+
+    const wsUrl = apiBase
+      .replace(/^http/, "ws")
+      .replace(/\/$/, "")
+      .concat(`/cases/${selectedCaseId}/nurse-bot`);
+
+    addNurseEvent("Connecting to Nurse Assistant...");
+    setNurseBotOpen(true);
+
+    const ws = new WebSocket(wsUrl);
+    nurseWsRef.current = ws;
+
+    ws.onopen = () => {
+      setNurseBotConnected(true);
+      addNurseEvent("Nurse Assistant connected");
+    };
+
+    ws.onclose = () => {
+      setNurseBotConnected(false);
+      addNurseEvent("Nurse Assistant disconnected");
+    };
+
+    ws.onerror = () => {
+      setNurseBotConnected(false);
+      addNurseEvent("Nurse Assistant connection error");
+    };
+
+    ws.onmessage = async (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "response.audio_transcript.delta" && data.delta) {
+          setNurseTranscript((prev) => prev + data.delta);
+        }
+
+        if (data.type === "error") {
+          addNurseEvent(`Error: ${data.error?.message || "Unknown error"}`);
+        }
+
+        if (data.type === "response.audio.delta" && data.delta) {
+          addNurseEvent("Received nurse audio response");
+        }
+      } catch {
+        addNurseEvent("Received nurse event");
+      }
+    };
+  }
+
+  function closeNurseBot() {
+    nurseWsRef.current?.close();
+    nurseWsRef.current = null;
+    setNurseBotOpen(false);
+    setNurseBotConnected(false);
   }
 
   const btnConfig = {
@@ -173,9 +353,24 @@ export default function AlertButton() {
       label: `RECORDING ${fmt(seconds)}`,
       icon: "■",
     },
-    sending: { bg: C.amber, color: "#fff", label: "SENDING…", icon: "↑" },
-    success: { bg: C.green, color: "#fff", label: "SENT", icon: "✓" },
-    error: { bg: C.accent, color: "#fff", label: "FAILED — RETRY", icon: "✕" },
+    sending: {
+      bg: C.amber,
+      color: "#fff",
+      label: "SENDING…",
+      icon: "↑",
+    },
+    success: {
+      bg: C.green,
+      color: "#fff",
+      label: "SENT",
+      icon: "✓",
+    },
+    error: {
+      bg: C.accent,
+      color: "#fff",
+      label: "FAILED — RETRY",
+      icon: "✕",
+    },
   }[status];
 
   const logColors = {
@@ -185,30 +380,13 @@ export default function AlertButton() {
     error: C.accent,
   };
 
-  const uploadDisabled =
-    status === STATUS.RECORDING || status === STATUS.SENDING;
-
-  const card = {
-    background: C.surface,
-    border: `1px solid ${C.border}`,
-    borderRadius: 10,
-  };
-
-  const sectionLabel = {
-    fontSize: 10,
-    fontWeight: 700,
-    color: C.textSecondary,
-    letterSpacing: "0.09em",
-  };
-
   return (
     <div style={{ background: C.bg, minHeight: "100vh" }}>
       <div
         className="page-container"
         style={{ fontFamily: "'DM Mono', 'Courier New', monospace" }}
       >
-        <div style={{ maxWidth: 440, margin: "0 auto" }}>
-          {/* Page title */}
+        <div style={{ maxWidth: 500, margin: "0 auto" }}>
           <div style={{ marginBottom: 24 }}>
             <span
               style={{
@@ -223,6 +401,7 @@ export default function AlertButton() {
             >
               PERSONAL ALERT
             </span>
+
             <h1
               style={{
                 fontSize: 20,
@@ -234,12 +413,12 @@ export default function AlertButton() {
             >
               Send an Alert
             </h1>
+
             <p style={{ fontSize: 12, color: C.textSecondary, margin: 0 }}>
               Select a beneficiary, then record or upload audio.
             </p>
           </div>
 
-          {/* Beneficiary card */}
           <div style={{ ...card, overflow: "hidden", marginBottom: 20 }}>
             <div
               style={{
@@ -249,6 +428,7 @@ export default function AlertButton() {
             >
               <span style={sectionLabel}>BENEFICIARY</span>
             </div>
+
             <div style={{ padding: "12px 14px" }}>
               <select
                 value={buttonId}
@@ -303,7 +483,7 @@ export default function AlertButton() {
                     ],
                     [
                       "Medical",
-                      selectedBeneficiary.patient_medical_summary,
+                      selectedBeneficiary.patient_medical_summary || "—",
                       true,
                     ],
                   ].map(([label, value, full]) => (
@@ -327,7 +507,7 @@ export default function AlertButton() {
                           lineHeight: 1.5,
                         }}
                       >
-                        {value}
+                        {value || "—"}
                       </div>
                     </div>
                   ))}
@@ -336,7 +516,6 @@ export default function AlertButton() {
             </div>
           </div>
 
-          {/* Record button */}
           <div
             style={{
               display: "flex",
@@ -378,6 +557,7 @@ export default function AlertButton() {
                 />
               </>
             )}
+
             <button
               onClick={handlePress}
               disabled={status === STATUS.SENDING}
@@ -426,7 +606,6 @@ export default function AlertButton() {
             </button>
           </div>
 
-          {/* Upload */}
           <input
             ref={fileInputRef}
             type="file"
@@ -434,6 +613,7 @@ export default function AlertButton() {
             onChange={handleFileUpload}
             style={{ display: "none" }}
           />
+
           <button
             type="button"
             disabled={uploadDisabled}
@@ -451,13 +631,11 @@ export default function AlertButton() {
               fontWeight: 700,
               letterSpacing: "0.06em",
               cursor: uploadDisabled ? "default" : "pointer",
-              transition: "border-color 0.15s, color 0.15s",
             }}
           >
             ↑ UPLOAD AUDIO FILE
           </button>
 
-          {/* Playback */}
           {audioURL && (
             <div style={{ ...card, padding: "12px 14px", marginBottom: 16 }}>
               <p style={{ ...sectionLabel, margin: "0 0 8px" }}>
@@ -471,7 +649,139 @@ export default function AlertButton() {
             </div>
           )}
 
-          {/* Log */}
+          {caseData && (
+            <div style={{ ...card, padding: "12px 14px", marginBottom: 16 }}>
+              <p style={{ ...sectionLabel, margin: "0 0 10px" }}>CASE RESULT</p>
+
+              <div
+                style={{ fontSize: 11, color: C.textPrimary, lineHeight: 1.6 }}
+              >
+                <div>
+                  <strong>Case ID:</strong> {caseData.case_id}
+                </div>
+                <div>
+                  <strong>Status:</strong> {caseData.status}
+                </div>
+                <div>
+                  <strong>Bucket:</strong> {caseData.urgency_bucket}
+                </div>
+                <div>
+                  <strong>Queue Score:</strong>{" "}
+                  {caseData.live_queue_score ?? caseData.queue_score}
+                </div>
+                <div>
+                  <strong>Transcript:</strong>{" "}
+                  {caseData.transcript_english ||
+                    caseData.transcript_raw ||
+                    "—"}
+                </div>
+                <div>
+                  <strong>Caption:</strong> {caseData.audio_caption_text || "—"}
+                </div>
+                <div>
+                  <strong>Actions:</strong>{" "}
+                  {Array.isArray(caseData.recommended_actions)
+                    ? caseData.recommended_actions.join(", ")
+                    : "—"}
+                </div>
+              </div>
+
+              {triageError && (
+                <div style={{ marginTop: 10, color: C.accent, fontSize: 11 }}>
+                  Pipeline error: {triageError}
+                </div>
+              )}
+
+              {caseData.status === "needs_review" && (
+                <button
+                  onClick={nurseBotOpen ? closeNurseBot : openNurseBot}
+                  style={{
+                    marginTop: 12,
+                    width: "100%",
+                    border: `1px solid ${C.blue}`,
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                    background: nurseBotOpen ? C.blue : "transparent",
+                    color: C.textPrimary,
+                    fontFamily: "inherit",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                  }}
+                >
+                  {nurseBotOpen
+                    ? "CLOSE NURSE ASSISTANT"
+                    : "TALK TO NURSE ASSISTANT"}
+                </button>
+              )}
+            </div>
+          )}
+
+          {nurseBotOpen && (
+            <div style={{ ...card, padding: "12px 14px", marginBottom: 16 }}>
+              <p style={{ ...sectionLabel, margin: "0 0 10px" }}>
+                NURSE ASSISTANT
+              </p>
+
+              <div
+                style={{ fontSize: 11, color: C.textPrimary, marginBottom: 8 }}
+              >
+                Connection:{" "}
+                {nurseBotConnected ? "connected" : "connecting / closed"}
+              </div>
+
+              <div
+                style={{
+                  minHeight: 60,
+                  padding: 10,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  color: C.textPrimary,
+                  fontSize: 11,
+                  marginBottom: 10,
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {nurseTranscript || "Waiting for nurse assistant transcript..."}
+              </div>
+
+              <div
+                style={{
+                  fontSize: 10,
+                  color: C.textSecondary,
+                  marginBottom: 6,
+                }}
+              >
+                EVENTS
+              </div>
+
+              <ul
+                style={{
+                  listStyle: "none",
+                  margin: 0,
+                  padding: 0,
+                  maxHeight: 120,
+                  overflowY: "auto",
+                }}
+              >
+                {nurseEvents.map((entry, i) => (
+                  <li
+                    key={i}
+                    style={{
+                      fontSize: 10,
+                      color: C.textSecondary,
+                      padding: "4px 0",
+                      borderBottom: `1px solid ${C.borderSoft}`,
+                    }}
+                  >
+                    {entry.ts} — {entry.msg}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {log.length > 0 && (
             <div style={{ ...card, overflow: "hidden" }}>
               <div
@@ -499,6 +809,7 @@ export default function AlertButton() {
                   clear
                 </button>
               </div>
+
               <ul
                 style={{
                   listStyle: "none",
@@ -545,21 +856,20 @@ export default function AlertButton() {
   );
 }
 
-async function sendAlertAudio(
-  blob,
-  buttonId,
-  filename = `alert-${Date.now()}.webm`,
-) {
+async function sendAlertAudio(blob, buttonId, filename, apiBase) {
   const formData = new FormData();
   formData.append("button_id", buttonId);
   formData.append("audio", blob, filename);
-  const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/audio`, {
+
+  const res = await fetch(`${apiBase}/cases/audio`, {
     method: "POST",
     body: formData,
   });
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || "Upload failed");
   }
+
   return res.json();
 }

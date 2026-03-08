@@ -2,15 +2,6 @@
 services/triage/run_triage.py
 ===================
 Backend-friendly parallel AI pipeline for Project JARMS.
-
-Purpose:
-  1. Fetch audio from Supabase Storage using the stored audio_file_url path
-  2. Run 3 AI services in parallel:
-      - pureadio
-      - situationeval
-      - captioner
-  3. Run final triage (with beneficiary context)
-  4. Update the corresponding row in `cases`
 """
 
 from __future__ import annotations
@@ -18,18 +9,18 @@ from __future__ import annotations
 import os
 import time
 import json
+import asyncio
 import tempfile
 import traceback
 import concurrent.futures
-from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+
 from dotenv import load_dotenv
 
 from core.supabase import supabase
 from services.triage import pureadio, situationeval, captioner, stt_triage
 from services.nurse_bot import trigger_flow
-from core.supabase import supabase
 from services.triage.queue import (
     load_policy,
     normalize_bucket,
@@ -40,35 +31,6 @@ load_dotenv()
 
 AUDIO_BUCKET = os.getenv("SUPABASE_AUDIO_BUCKET", "pab_audio")
 TEST_AUDIO_PATH = os.getenv("TEST_AUDIO_PATH", "interviewcoolies.mp3")
-
-
-# ------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------
-
-
-def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
-    if not value:
-        return None
-    try:
-        dt = datetime.fromisoformat(value)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt
-    except Exception:
-        return None
-
-
-def _get_elapsed_seconds(case_row: Dict[str, Any]) -> float:
-    """Prefer audio_uploaded_at, fall back to opened_at."""
-    start_dt = _parse_iso_datetime(case_row.get("audio_uploaded_at"))
-    if not start_dt:
-        start_dt = _parse_iso_datetime(case_row.get("opened_at"))
-    if not start_dt:
-        return 0.0
-    now_dt = datetime.now(timezone.utc)
-    elapsed = (now_dt - start_dt).total_seconds()
-    return max(elapsed, 0.0)
 
 
 def _now_iso() -> str:
@@ -83,29 +45,11 @@ def _safe_json(data: Any) -> Any:
         return {"raw": str(data)}
 
 
-def _bucket_base_score(bucket: str) -> int:
-    score_map = {
-        "life_threatening": 100,
-        "emergency": 80,
-        "requires_review": 60,
-        "minor_emergency": 40,
-        "non_emergency": 20,
-    }
-    return score_map.get(bucket, 60)
-
-
 def _normalize_recommended_actions(
     raw_actions: Any,
     urgency_bucket: str,
     policy: Dict[str, Any],
 ) -> list[str]:
-    """
-    Build final action list:
-      1. Start with mandatory actions for this bucket (always applied)
-      2. Parse and validate LLM's discretionary picks against allowed list
-      3. Merge: mandatory first, then validated discretionary (deduped)
-    """
-    # -- Parse raw LLM output into a flat list --
     llm_actions: list[str] = []
 
     if isinstance(raw_actions, list):
@@ -126,30 +70,53 @@ def _normalize_recommended_actions(
         if isinstance(secondary, list):
             llm_actions.extend(str(a).strip() for a in secondary if str(a).strip())
 
-    # -- Validate LLM picks against allowed actions --
     allowed = policy.get("allowed_actions", [])
     if allowed:
         llm_actions = [a for a in llm_actions if a in allowed]
 
-    # -- Merge: mandatory first, then LLM discretionary additions --
     mandatory = policy.get("mandatory_actions_by_bucket", {}).get(
         urgency_bucket, ["call_patient_now"]
     )
+
     merged = list(mandatory)
     for action in llm_actions:
         if action not in merged:
             merged.append(action)
 
-    if not merged:
-        merged = ["call_patient_now"]
-
-    # -- Dedupe while preserving order --
     deduped = []
     seen = set()
     for action in merged:
         if action and action not in seen:
             deduped.append(action)
             seen.add(action)
+
+    return deduped or ["call_patient_now"]
+
+
+def _normalize_caption_observations(caption_result: Dict[str, Any]) -> list[str]:
+    raw = (
+        caption_result.get("observations")
+        or caption_result.get("notable_events")
+        or caption_result.get("audio_observations")
+        or []
+    )
+
+    observations: list[str] = []
+
+    if isinstance(raw, list):
+        observations = [str(x).strip() for x in raw if str(x).strip()]
+    elif isinstance(raw, str):
+        if "," in raw:
+            observations = [x.strip() for x in raw.split(",") if x.strip()]
+        else:
+            observations = [x.strip() for x in raw.splitlines() if x.strip()]
+
+    deduped = []
+    seen = set()
+    for obs in observations:
+        if obs not in seen:
+            deduped.append(obs)
+            seen.add(obs)
 
     return deduped
 
@@ -162,6 +129,7 @@ def _set_case_status(
     payload = {"status": status, "updated_at": _now_iso()}
     if extra_fields:
         payload.update(extra_fields)
+
     supabase.table("cases").update(payload).eq("case_id", case_id).execute()
 
 
@@ -192,10 +160,6 @@ def _get_case_by_audio_path(storage_path: str) -> Optional[Dict[str, Any]]:
 
 
 def _load_context_for_case(case_row: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Load beneficiary context including language preferences and
-    medical summary from pab_beneficiaries.
-    """
     nric = case_row.get("nric")
     beneficiary = None
 
@@ -221,13 +185,11 @@ def _load_context_for_case(case_row: Dict[str, Any]) -> Dict[str, Any]:
         primary_language = beneficiary.get("primary_language") or "unknown"
         secondary_language = beneficiary.get("secondary_language")
 
-        # Build patient medical summary from beneficiary record
         patient_medical_summary = {
             "age": beneficiary.get("age"),
-            "medical_conditions": beneficiary.get("medical_conditions") or [],
-            "medications": beneficiary.get("medications") or [],
-            "allergies": beneficiary.get("allergies") or [],
-            "mobility_status": beneficiary.get("mobility_status"),
+            "patient_medical_summary": beneficiary.get("patient_medical_summary"),
+            "dnr_status": beneficiary.get("dnr_status"),
+            "consent_private_ambulance": beneficiary.get("consent_private_ambulance"),
         }
 
     return {
@@ -239,27 +201,10 @@ def _load_context_for_case(case_row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _flatten_triage_flags(raw_flags: Any) -> list[str]:
-    """
-    Convert triage_flags to a JSON array for Supabase.
-
-    The LLM returns a dict of booleans, e.g. {"not_breathing": true, ...}.
-    The DB column expects a JSON array of the flag names that are true,
-    e.g. ["not_breathing", "fall_detected_or_suspected"].
-    If the input is already a list, pass it through.
-    """
-    if isinstance(raw_flags, dict):
-        return [k for k, v in raw_flags.items() if v]
-    if isinstance(raw_flags, list):
-        return raw_flags
-    return []
-
-
 def _normalize_triage_output(
     case_row: Dict[str, Any],
     stt_result: Dict[str, Any],
     triage_result: Dict[str, Any],
-    situation_eval: Dict[str, Any],
     caption_result: Dict[str, Any],
     policy: Dict[str, Any],
 ) -> Dict[str, Any]:
@@ -282,6 +227,8 @@ def _normalize_triage_output(
         policy,
     )
 
+    triage_flags = _normalize_caption_observations(caption_result)
+
     sbar_json = _safe_json(
         triage_result.get("sbar")
         or {
@@ -299,25 +246,20 @@ def _normalize_triage_output(
     queue_score = compute_queue_score(temp_case_row, policy)
 
     return {
-        "status": "queued",
+        "status": "new",
         "urgency_bucket": urgency_bucket,
         "queue_score": queue_score,
         "transcript_raw": transcript_raw,
         "transcript_english": transcript_english,
         "audio_caption_text": audio_caption_text,
-        "triage_flags": _flatten_triage_flags(triage_result.get("triage_flags")),
+        "triage_flags": triage_flags,
         "recommended_actions": recommended_actions,
         "sbar_json": sbar_json,
         "updated_at": _now_iso(),
     }
 
 
-# ------------------------------------------------------------
-# Main pipeline
-# ------------------------------------------------------------
-
-
-def run_pipeline(storage_path: str) -> Dict[str, Any]:
+async def run_pipeline(storage_path: str) -> Dict[str, Any]:
     print("\n" + "=" * 60)
     print("🚀 PROJECT JARMS — BACKEND PIPELINE STARTING")
     print(f"   Storage Path : {storage_path}")
@@ -394,6 +336,7 @@ def run_pipeline(storage_path: str) -> Dict[str, Any]:
         stt_result = {
             "raw_transcript": raw_tx,
             "transcript": res_pureadio.get("translation") or "NO_TRANSLATION",
+            "confidence": float(res_pureadio.get("confidence") or 0.8),
             "primary_language": primary_language,
             "secondary_language": secondary_language,
             "silence_detected": "SILENCE_DETECTED" in raw_tx,
@@ -402,6 +345,7 @@ def run_pipeline(storage_path: str) -> Dict[str, Any]:
         print("[TRIAGE] Running final urgency classification with enriched context...")
         triage_result = stt_triage.run_triage(
             transcript=stt_result["transcript"],
+            # stt_confidence=stt_result["confidence"],
             protocol=triage_protocol,
             situation_eval=res_situeval,
             caption=res_caption,
@@ -420,7 +364,6 @@ def run_pipeline(storage_path: str) -> Dict[str, Any]:
             case_row=case_row,
             stt_result=stt_result,
             triage_result=triage_result,
-            situation_eval=res_situeval,
             caption_result=res_caption,
             policy=policy,
         )
@@ -432,9 +375,13 @@ def run_pipeline(storage_path: str) -> Dict[str, Any]:
             .execute()
         )
 
-        # TRIGGER FLOW: Check if the Nurse Bot should intervene
-        print("[NURSE_BOT] Evaluating case for follow-up...")
-        await trigger_flow.evaluate_and_flag(case_id, triage_result)
+        # Nurse Bot trigger: only requires_review OR conflicting observations
+        observations = update_payload.get("triage_flags", [])
+        await trigger_flow.evaluate_and_flag(
+            case_id=case_id,
+            urgency_bucket=update_payload["urgency_bucket"],
+            observations=observations,
+        )
 
         total_time = time.time() - start_time
         print(f"\n✅ Pipeline complete in {total_time:.2f}s.")
@@ -463,12 +410,12 @@ def run_pipeline(storage_path: str) -> Dict[str, Any]:
 
 
 async def run_pipeline_from_storage_path(storage_path: str) -> Dict[str, Any]:
-    return run_pipeline(storage_path)
+    return await run_pipeline(storage_path)
 
 
 if __name__ == "__main__":
     try:
-        result = run_pipeline(TEST_AUDIO_PATH)
+        result = asyncio.run(run_pipeline(TEST_AUDIO_PATH))
         print(json.dumps(result, indent=2, default=str))
     except KeyboardInterrupt:
         print("\n[ABORT] Pipeline stopped by user.")

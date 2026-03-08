@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from core.settings import settings
 from routers.cases import router as cases_router
 from routers.beneficiaries import router as beneficiaries_router
-from routers.nurse_bot import router as nurse_bot_router
+from routers import nurse_bot
 
 
 @asynccontextmanager
@@ -50,7 +50,8 @@ app.include_router(
     tags=["Beneficiaries"],
 )
 
-app.include_router(nurse_bot_router, prefix="/nurse-bot", tags=["Nurse Bot"])
+
+app.include_router(nurse_bot.router)
 
 
 @app.get("/health", tags=["Health"])

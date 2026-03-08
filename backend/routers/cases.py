@@ -108,10 +108,7 @@ async def update_case(case_id: str, payload: dict):
             payload["closed_at"] = datetime.now(timezone.utc).isoformat()
 
         response = (
-            supabase.table("cases")
-            .update(payload)
-            .eq("case_id", case_id)
-            .execute()
+            supabase.table("cases").update(payload).eq("case_id", case_id).execute()
         )
 
         if not response.data:
@@ -137,19 +134,19 @@ async def get_case_audio(case_id: str):
             .single()
             .execute()
         )
-        
+
         if not case_res.data:
             raise HTTPException(status_code=404, detail="Case not found")
-            
+
         storage_path = case_res.data["audio_file_url"]
         if not storage_path:
             raise HTTPException(status_code=404, detail="Audio not found")
 
         # Download from Supabase
-        # Note: In a production app, you might use storage.from_().get_public_url() 
+        # Note: In a production app, you might use storage.from_().get_public_url()
         # but the user requested a backend API for this.
         audio_data = supabase.storage.from_(AUDIO_BUCKET).download(storage_path)
-        
+
         return Response(content=audio_data, media_type="audio/webm")
 
     except Exception as e:
@@ -230,7 +227,7 @@ async def create_case_from_audio(
             "button_id": button_id,
             "status": "processing",
             "urgency_bucket": "requires_review",
-            "queue_score": 60,
+            "queue_score": 0,
             "source": "pab_audio",
             "transcript_raw": None,
             "transcript_english": None,
@@ -294,3 +291,18 @@ async def create_case_from_audio(
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{case_id}")
+async def get_case(case_id: str):
+    response = (
+        supabase.table("cases")
+        .select("*, pab_beneficiaries(*)")
+        .eq("case_id", case_id)
+        .single()
+        .execute()
+    )
+
+    row = response.data
+    beneficiary = row.pop("pab_beneficiaries", {}) or {}
+    return {**row, **beneficiary}
