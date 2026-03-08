@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_SERVICE_ROLE_KEY: str
+    OPENAI_API_KEY: str = Field(default="dummy")
     ALLOWED_ORIGINS: List[str] = Field(default_factory=lambda: ["*"])
 
     model_config = SettingsConfigDict(
