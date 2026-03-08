@@ -28,6 +28,8 @@ from dotenv import load_dotenv
 
 from core.supabase import supabase
 from services.triage import pureadio, situationeval, captioner, stt_triage
+from services.nurse_bot import trigger_flow
+from core.supabase import supabase
 from services.triage.queue import (
     load_policy,
     normalize_bucket,
@@ -429,6 +431,10 @@ def run_pipeline(storage_path: str) -> Dict[str, Any]:
             .eq("case_id", case_id)
             .execute()
         )
+
+        # TRIGGER FLOW: Check if the Nurse Bot should intervene
+        print("[NURSE_BOT] Evaluating case for follow-up...")
+        await trigger_flow.evaluate_and_flag(case_id, triage_result)
 
         total_time = time.time() - start_time
         print(f"\n✅ Pipeline complete in {total_time:.2f}s.")
