@@ -387,7 +387,7 @@ export default function AlertButton() {
         style={{ fontFamily: "'DM Mono', 'Courier New', monospace" }}
       >
         <div style={{ maxWidth: 500, margin: "0 auto" }}>
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ marginBottom: 24, paddingTop: 20 }}>
             <span
               style={{
                 fontSize: 10,
