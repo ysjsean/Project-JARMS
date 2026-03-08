@@ -270,7 +270,7 @@ export default function AlertButton() {
 
         if (
           updated.status === "queued" ||
-          updated.status === "needs_review" ||
+          updated.status === "requires_review" ||
           updated.status === "error" ||
           updated.status === "assigned" ||
           updated.status === "closed"
@@ -692,7 +692,7 @@ export default function AlertButton() {
                 </div>
               )}
 
-              {caseData.status === "needs_review" && (
+              {caseData.status === "requires_review" && (
                 <button
                   onClick={nurseBotOpen ? closeNurseBot : openNurseBot}
                   style={{

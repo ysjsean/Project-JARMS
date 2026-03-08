@@ -38,7 +38,7 @@ async def evaluate_and_flag(
         try:
             supabase.table("cases").update(
                 {
-                    "status": "needs_review",
+                    "status": "requires_review",
                 }
             ).eq("case_id", case_id).execute()
         except Exception as e:
