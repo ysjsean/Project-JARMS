@@ -67,7 +67,7 @@ export const mapCase = (c) => ({
 export const fetchInitialAlerts = createAsyncThunk(
   'alerts/fetchInitial',
   async () => {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     const response = await fetch(`${backendUrl}/cases/`);
     if (!response.ok) throw new Error('Failed to fetch cases');
     const data = await response.json();
@@ -78,7 +78,7 @@ export const fetchInitialAlerts = createAsyncThunk(
 export const updateCaseBackend = createAsyncThunk(
   'alerts/updateCaseBackend',
   async ({ caseId, updates }) => {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     const response = await fetch(`${backendUrl}/cases/${caseId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -190,7 +190,7 @@ export default alertsSlice.reducer;
 // --- refreshAlerts thunk ---
 // Fetches the latest data from the backend and overwrites the Redux store.
 // Call this after any PATCH to guarantee immediate UI sync.
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 export const refreshAlerts = () => async (dispatch) => {
   try {
     const response = await fetch(`${BACKEND_URL}/cases/`);
