@@ -13,12 +13,13 @@ The system analyzes audio alerts using multiple AI agents and converts them into
 
 How might we use AI to enhance the PAB system so that hotline responders can more accurately understand the senior's situation, assess urgency, and allocate resources effectively?
 
-3 key notes:
-| | |
-| ----- | ------- |
-| Speed | Every second wasted not allocating resources could be severe |
-| Accuracy | Responders need accurate context and situation assessment, not just an alert signal |
-| Resource Allocation | The right help must reach the right person at the right time |
+4 key notes:
+| Key Design Principles | Why It Matters                                                                                     |
+| --------------------- | -------------------------------------------------------------------------------------------------- |
+| Speed                 | Every second wasted not allocating resources could be severe                                       |
+| Accuracy              | Responders need accurate context and situation assessment, not just an alert signal                |
+| Resource Allocation   | The right help must reach the right person at the right time                                       |
+| Prioritisation        | Not all cases are equal, the system must rank urgency to prevent critical cases from being delayed |
 
 PAB systems typically provide very limited context.
 
@@ -457,4 +458,4 @@ JARMS was developed during **HackOMania 2026** within 24 hours to explore how AI
 | Jun Kai       | Triage, Database & API                |
 | Mervyn Chiong | Training AI Models                    |
 | Sean Young    | UIUX, State Management & Live updates |
-| Regine Yap    | UIUX Designer, Project Manager        |
+| Regine Yap    | Brainstormer & Vibe Coder             |
